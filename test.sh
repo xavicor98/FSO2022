@@ -156,8 +156,8 @@ validate() {
 	VAR="$1"
 	LOAD_VAR="LOAD_$1"
 	CONFIG_VAR="CONFIG_$1"
-	if [ "0" -eq "${!VAR}" ]; then # no ha este VAR por param
-		if [ "0" -eq "${!LOAD_VAR}" ]; then # tampoco estaba en el fitxer (o no hay fitxer)
+	if [ "0" -eq ${!VAR} ]; then # no hay este VAR por param
+		if [ "0" -eq ${!LOAD_VAR} ]; then # tampoco estaba en el fitxer (o no hay fitxer)
 			util_ask_for_input_in_range $2 $3 "$4"
 			declare -g ${CONFIG_VAR}="$?"
 		else # darle valor que hay en el fitxer
@@ -292,6 +292,7 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			if [ "0" -eq "${Y_PADDLE}" ] && [ "0" -eq "${X_PADDLE}" ]; then
 				Y_PADDLE=$(echo "${OPTARG}" | cut -d',' -f1)
 				X_PADDLE=$(echo "${OPTARG}" | cut -d',' -f2)
+				echo="${Y_PADDLE} ${X_PADDLE}"
 			else
 				err "me has dado -0 (Fila y columna de la paleta) 2 veces!"
 			fi
