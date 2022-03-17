@@ -114,7 +114,7 @@ util_is_in_range() {
 	NUM=$1
 	MIN=$2
 	MAX=$3
-	[ "${NUM}" -ge "${MIN}" ] && [ "${NUM}" -le "${MAX}" ] && true
+	[ "${NUM}" -ge "${MIN}" ] && [ "${NUM}" -le "${MAX}" ]
 }
 
 
@@ -203,6 +203,7 @@ validate_config() {
 			#TODO ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
 			BALL_Y=$(echo ${BALL} | cut -d, -f1)
 			if ! util_is_in_range ${BALL_Y} 2 118; then
+				# echo Porque me estas pidiendo cositas? TODO
 				util_ask_for_input_in_range 2 118 "posFilaPil_$N"
 			fi
 			BALL_X=$(echo ${BALL} | cut -d, -f2)
@@ -257,7 +258,6 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			else
 				err "me has dado fixer 2 veces!"
 			fi
-
 			;;
 
 		f)
@@ -345,6 +345,7 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			>&2 usage 
 			exit 1
 			;;
+
 	esac
 done
 
