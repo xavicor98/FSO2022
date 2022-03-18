@@ -122,17 +122,17 @@ def parse_args():
 
         elif o == "-0":
             if cfg_args.y_paddle == 0 or cfg_args.x_paddle == 0 :
-                try:
-                    #a = "posFilaPal,posColPal"
-                    s = a.split(',')
-                    if len(s) == 2:
-                        cfg_args.y_paddle, cfg_args.x_paddle = s
+                #a = "posFilaPal,posColPal"
+                s = a.split(',')
+                if len(s) == 2:
+                    cfg_args.y_paddle, cfg_args.x_paddle = s
+                    try:
                         cfg_args.y_paddle = int(cfg_args.y_paddle)
                         cfg_args.x_paddle = int(cfg_args.x_paddle)
-                    else:
+                    except ValueError:
                         err(f"arg \"{o}\" (posFilaPal,posColPal) requereix int,int. (Ha rebut \"{a}\").")
                         sys.exit(1)
-                except ValueError:
+                else:
                     err(f"arg \"{o}\" (posFilaPal,posColPal) requereix int,int. (Ha rebut \"{a}\").")
                     sys.exit(1)
             else:
@@ -153,7 +153,7 @@ def parse_args():
         elif o == "-1":
             for serve_str in a.split(" "):
                 # print(f">read serve #{len(cfg_args.serves)} = {serve_str}")
-                # TODO comprovar q de verdad hay 4 valores
+                # FIXED comprov que de verdad hay 4 valores separados por ','
                 s = serve_str.split(',')
                 if len(s) == 4:
                     ball_y, ball_x, ball_speed_y, ball_speed_x = serve_str.split(',')
@@ -302,10 +302,10 @@ def validate_config(cfg_args, cfg_load):
         # if not 2 <= ball_x <= 35: ##FIXED ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
         #     ball_x = util_ask_for_input_in_range(2, 35, f"[posColPil#{n}]")
 
-        if not 2 <= ball_y <= y - 1:
-            ball_y = util_ask_for_input_in_range(2, y - 1, f"[posFilaPil#{n}]")
-        if not 2 <= ball_x <= x - 1:
-            ball_x = util_ask_for_input_in_range(2, x - 1, f"[posColPil#{n}]")
+        if not 2 <= ball_y <= cfg.y - 1:
+            ball_y = util_ask_for_input_in_range(2, cfg.y - 1, f"[posFilaPil#{n}]")
+        if not 2 <= ball_x <= cfg.x - 1:
+            ball_x = util_ask_for_input_in_range(2, cfg.x - 1, f"[posColPil#{n}]")
         if not -1.0 <= ball_speed_y <= 1.0:
             ball_speed_y = util_ask_for_input_in_range(-1.0, 1.0, f"[velFil#{n}]")
         if not -1.0 <= ball_speed_x <= 1.0:

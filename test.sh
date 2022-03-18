@@ -16,6 +16,7 @@ usage() {
 	echo "	[-p midaPort] Mida de la porteria (8..numFiles-1)"
 	echo "	[-0 posFilaPal,posColPal] Fila i columna de la paleta (2..118),(2..35)"
 	echo "	[-m midaPaleta] Mida de la paleta (3..numFiles-1)"
+	# TODO Tendria que depender de la mida de la porteria? [3..midaPort-1] (Para evitar el caso que la paleta sea mas grande que la porteria?)
 	echo "	[-1 posFilaPil,posColPil,velFil,velCol] Fila, columna, velocitat vertical i horitzontal de la pilota en joc (2..118),(2..35),(-1.0..1.0),(-1.0..1.0). Aquesta opt es pot repetir fins a 9 vegades."
 }
 
@@ -127,16 +128,16 @@ util_float_is_in_range() {
 	(( $(echo "${NUM} >= ${MIN}" | bc -l) )) && (( $(echo "${MAX} <=  ${MAX}" | bc -l) ))
 }
 
-# min, max, promt
+# min, max, prompt
 util_ask_for_input_in_range() {
-	>&2 read -p "[$3] Introduce valor entre $1 y $2: " INPUT
+	>&2 read -p "[$3] Introdueix int entre $1 i $2: " INPUT
 	re='^[\-]?[0-9]+$'
 	if ! [[ "${INPUT}" =~ ${re} ]] ; then
-		err "bro, un numero prfa"
+		err "Requereix un int (format incorrrecte)."
 		util_ask_for_input_in_range $1 $2 "$3"
 	fi
 	if ! util_is_in_range ${INPUT} $1 $2; then
-		err bro, entre $1 y $2
+		err "Requereix int entre $1 i $2..."
 		util_ask_for_input_in_range $1 $2 "$3"
 	fi
 	return ${INPUT}
@@ -147,12 +148,14 @@ util_float_is_in_range() {
 	NUM=$1
 	MIN=$2
 	MAX=$3
-	echo is $NUM between $MIN and $MAX
 	(( $(echo "${NUM} >= ${MIN}" | bc -l) )) && (( $(echo "${NUM} <=  ${MAX}" | bc -l) ))
 }
 
 
-#OPT, MIN, MAX, prompt
+#variable, MIN, MAX, prompt
+# compara si existe VAR o LOAD_VAR,
+# valida si esta dentro del rango MIN..MAX,
+# y lo guarda en CONFIG_VAR
 validate() {
 	VAR="$1"
 	LOAD_VAR="LOAD_$1"
@@ -175,6 +178,7 @@ validate() {
 }
 
 
+# TODO echo la razón para pedir un param (no se ha pasado, es mayor / menor que el rango, es incompatible, etc)
 validate_config() {
 	validate Y 10 120 "numFiles"
 	validate X 10 36 "numColum"
@@ -187,7 +191,11 @@ validate_config() {
 	# get balls
 	if [ "0" -eq "${N}" ]; then # si no pasa balls by param
 		if [ "0" -eq "${LOAD_N}" ]; then # tampoco hay balls en el fitxer (o no hay fitxer)
-			echo "bro no me has dado balls ni el config ni por params (con -1) :("
+			# echo "bro no me has dado balls ni el config ni por params (con -1) :("
+            err "No he rebut pilotes ni per parametres (arg \"-1\"), ni pel fitxer."
+            # Tenemos que salir porque no tenemos suficiente info para guardar/crear un config "correcto"
+            # (Pedir serves por teclado no tiene sentido)
+			exit 1
 		else # no pasa balls por param pero si por fitxer
 			N=${LOAD_N}
 			SERVES=${LOAD_SERVES}
@@ -201,41 +209,40 @@ validate_config() {
 	N=0 # cuenta otra vez, just in case
 	for BALL in ${SERVES}; do
 		if [ "${N}" -lt "9" ]; then # en principio si llega aqui, N es correcta :/
-			#TODO ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
+			#FIXED ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
 			BALL_Y=$(echo ${BALL} | cut -d, -f1)
-			if ! util_is_in_range ${BALL_Y} 2 118; then
-				# echo Porque me estas pidiendo cositas? TODO
-				util_ask_for_input_in_range 2 118 "posFilaPil_$N"
+			if ! util_is_in_range ${BALL_Y} 2 $((CONFIG_Y-1)); then
+				util_ask_for_input_in_range 2 $((CONFIG_Y-1)) "posFilaPil_$N"
 			fi
 			BALL_X=$(echo ${BALL} | cut -d, -f2)
-			if ! util_is_in_range ${BALL_X} 2 35; then
-				util_ask_for_input_in_range 2 35 "posColPil_$N"
+			if ! util_is_in_range ${BALL_X} 2 $((CONFIG_X-1)); then
+				util_ask_for_input_in_range 2 $((CONFIG_X-1)) "posColPil_$N"
 			fi
 			BALL_SPEED_Y=$(echo ${BALL} | cut -d, -f3)
 			while ! util_float_is_in_range ${BALL_SPEED_Y} -1 1; do
-				>&2 read -p "[velFil_$N] Introduce valor decimal entre -1 y 1: " INPUT
+				>&2 read -p "[velFil_$N] Introdueix float entre -1 y 1: " INPUT
 				re='^[\-]?([0-9]+)|([0-9]*\.[0-9]+)$' # 9 or .9 or 0.9
 				if [[ "${INPUT}" =~ ${re} ]] ; then
 					BALL_SPEED_Y=$INPUT
 				else
-					err "bro, un float prfa"
+            		err "Requereix un float (format incorrecte)."
 				fi
 			done
 			BALL_SPEED_X=$(echo ${BALL} | cut -d, -f4)
 			while ! util_float_is_in_range ${BALL_SPEED_X} -1 1; do
-				>&2 read -p "[velCol_$N] Introduce valor decimal entre -1 y 1: " INPUT
+				>&2 read -p "[velCol_$N] Introdueix float entre -1 y 1: " INPUT
 				re='^[\-]?([0-9]+)|([0-9]*\.[0-9]+)$' # 9 or .9 or 0.9
 				if [[ "${INPUT}" =~ ${re} ]] ; then
 					BALL_SPEED_X=$INPUT
 				else
-					err "bro, un float prfa"
+            		err "Requereix un float (format incorrecte)."
 				fi
 			done
 			N=$((N+1))
 			CONFIG_SERVES="${CONFIG_SERVES} ${BALL_Y},${BALL_X},${BALL_SPEED_Y},${BALL_SPEED_X}"
-			echo "ADDINGBALLTO_CONFIG_SERVES: ${BALL_Y},${BALL_X},${BALL_SPEED_Y},${BALL_SPEED_X}"
+			# echo "ADDINGBALLTO_CONFIG_SERVES: ${BALL_Y},${BALL_X},${BALL_SPEED_Y},${BALL_SPEED_X}"
 		else
-			err "demasiadas bolas bro"
+            err "He rebut pilotes de sobra... (max=9)"
 			exit 0
 		fi
 	done
@@ -245,19 +252,20 @@ validate_config() {
 while getopts ':hn:f:c:p:0:m:1:' arg; do
 	case "${arg}" in
 		h)
-			echo "	[-h] Mostra help"
+			# echo "	[-h] Mostra help"
 			usage
-			exit 0
+			# exit 0
 			;;
 
 		n)
-			echo "	[-n nomFit] Nom del fitxer on guardar la config."
+			# echo "	[-n nomFit] Nom del fitxer on guardar la config."
 			if [ -z "${FILENAME}" ]; then
 				FILENAME=${OPTARG}
 				echo "FILENAME=${FILENAME}" # DEBUG
 				# [ -f "$FILENAME" ] && load_config
 			else
-				err "me has dado fixer 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -266,7 +274,9 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			if [ "0" -eq "${Y}" ]; then
 				Y=${OPTARG}
 			else
-				err "me has dado -f numFiles-1 2 veces!"
+				# err "me has dado -f numFiles-1 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -275,7 +285,9 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			if [ "0" -eq "${X}" ]; then
 				X=${OPTARG}
 			else
-				err "me has dado -c numColum 2 veces!"
+				# err "me has dado -c numColum 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -284,7 +296,9 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			if [ "0" -eq "${WIDTH_GOAL}" ]; then
 				WIDTH_GOAL=${OPTARG}
 			else
-				err "me has dado -p midaPort 2 veces!"
+				# err "me has dado -p midaPort 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -295,7 +309,9 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 				X_PADDLE=$(echo "${OPTARG}" | cut -d',' -f2)
 				echo="${Y_PADDLE} ${X_PADDLE}"
 			else
-				err "me has dado -0 (Fila y columna de la paleta) 2 veces!"
+				# err "me has dado -0 (Fila y columna de la paleta) 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -304,7 +320,9 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 			if [ "0" -eq "${WIDTH_PADDLE}" ]; then
 				WIDTH_PADDLE=${OPTARG}
 			else
-				err "me has dado -m midaPaleta 2 veces!"
+				# err "me has dado -m midaPaleta 2 veces!"
+				err "arg ${arg} doble."
+				exit 3
 			fi
 			;;
 
@@ -316,19 +334,21 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 					BALL_X=$(echo $BALL | cut -d, -f2)
 					BALL_SPEED_Y=$(echo $BALL | cut -d, -f3)
 					BALL_SPEED_X=$(echo $BALL | cut -d, -f4)
-					echo "reading ball #$N=(${BALL_Y}),(${BALL_X}), (${BALL_SPEED_Y}),(${BALL_SPEED_X})"
-					if (( $(echo "${BALL_SPEED_Y} >= -1.0" | bc -l) )) &&
-					 (( $(echo "${BALL_SPEED_Y} <=  1.0" | bc -l) )); then
-						echo ok bola speed bien
-					else
-						echo no oka
-					fi
+					# echo "reading ball #$N=(${BALL_Y}),(${BALL_X}), (${BALL_SPEED_Y}),(${BALL_SPEED_X})"
+
+					# rangos al validar (luego)
+					# if (( $(echo "${BALL_SPEED_Y} >= -1.0" | bc -l) )) &&
+					#  (( $(echo "${BALL_SPEED_Y} <=  1.0" | bc -l) )); then
+					# 	# echo ok bola speed bien
+					# else
+					# 	# echo no oka
+					# fi
 
 					N=$((N+1))
 					SERVES="${SERVES} ${BALL}"
 				else
-					err "demasiadas bolas bro"
-					exit 0
+                    err "He rebut pilotes de sobra... (max=9)"
+					exit 1
 				fi
 			done
 			# echo "y > 0"
@@ -352,17 +372,22 @@ done
 
 
 if [ -z "${FILENAME}" ]; then
-	err No me has dado FILENAME con -n, adeu
+	# err No me has dado FILENAME con -n, adeu
+    err "No he rebut nom del fitxer on guardar la config. (arg \"-n (nomFit)\")."
 	exit 1
 fi
 if [ -f "${FILENAME}" ]; then
-	echo loading config cause it exists
-	load_config
+	# echo loading config cause it exists
+	load_config # el config exite, lo cargamos
 fi
-echo validate_config
+# echo validate_config
 validate_config
-echo save_config
+# echo save_config
 save_config
-echo pintas config======
-cat $FILENAME
+
+
+# echo he guardado el siguiente config
+# cat $FILENAME
+
+# echo Adeu
 
