@@ -254,7 +254,7 @@ while getopts ':hn:f:c:p:0:m:1:' arg; do
 		h)
 			# echo "	[-h] Mostra help"
 			usage
-			# exit 0
+			exit 0
 			;;
 
 		n)

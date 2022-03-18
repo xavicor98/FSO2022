@@ -78,7 +78,7 @@ def parse_args():
     for o, a in opts:
         if o == "-h":
             usage()
-            # sys.exit()
+            sys.exit()
 
         elif o == "-n": # nomFit
             if cfg_args.filename is None:
