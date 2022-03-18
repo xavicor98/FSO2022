@@ -1,17 +1,58 @@
 #!/usr/bin/env python3
 import getopt, sys
 
-def usage():
-    print("USAGE: " + sys.argv[0])
-    print(" [-h] Mostra help")
-    print(" [-n nomFit] Nom del fitxer on guardar la config.")
-    print(" [-f numFiles] # Files de la zona (10..120)")
-    print(" [-c numColum] # Columnes de la zona (10..36)")
-    print(" [-p midaPort] Mida de la porteria (8..numFiles-1)")
-    print(" [-0 posFilaPal,posColPal] Fila i columna de la paleta (2..118),(2..35)")
-    print(" [-m midaPaleta] Mida de la paleta (3..numFiles-1)")
-    print(" [-1 posFilaPil,posColPil,velFil,velCol] Fila, columna, velocitat vertical i horitzontal de la pilota en joc (2..118),(2..35),(-1.0..1.0),(-1.0..1.0). Aquesta opt es pot repetir fins a 9 vegades.")
 
+def err(msg):
+    print("ERROR: " + msg, file=sys.stderr)
+
+
+class Config:
+    filename=None # Nom del fitxer on guardar la config
+    y = 0 # Files
+    x = 0 # Cols
+    width_goal = 0 # Mida porteria
+    y_paddle = 0 # Fila pal
+    x_paddle = 0 # Col pal
+    width_paddle = 0 # Mida pal
+    # n = 0 # Num. de pilotas
+    serves = []
+    # serves="" # Info posFilaPil posColPil velFil velCol de pilotas
+    def validate():
+        return True
+
+def usage(err=False):
+    if err:
+        err("USAGE: " + sys.argv[0])
+        err(" [-h] Mostra help")
+        err(" [-n nomFit] Nom del fitxer on guardar la config.")
+        err(" [-f numFiles] # Files de la zona (10..120)")
+        err(" [-c numColum] # Columnes de la zona (10..36)")
+        err(" [-p midaPort] Mida de la porteria (8..numFiles-1)")
+        err(" [-0 posFilaPal,posColPal] Fila i columna de la paleta (2..118),(2..35)")
+        err(" [-m midaPaleta] Mida de la paleta (3..numFiles-1)")
+        err(" [-1 posFilaPil,posColPil,velFil,velCol] Fila, columna, velocitat vertical i horitzontal de la pilota en joc (2..118),(2..35),(-1.0..1.0),(-1.0..1.0). Aquesta opt es pot repetir fins a 9 vegades.")
+    else:
+        print("USAGE: " + sys.argv[0])
+        print(" [-h] Mostra help")
+        print(" [-n nomFit] Nom del fitxer on guardar la config.")
+        print(" [-f numFiles] # Files de la zona (10..120)")
+        print(" [-c numColum] # Columnes de la zona (10..36)")
+        print(" [-p midaPort] Mida de la porteria (8..numFiles-1)")
+        print(" [-0 posFilaPal,posColPal] Fila i columna de la paleta (2..118),(2..35)")
+        print(" [-m midaPaleta] Mida de la paleta (3..numFiles-1)")
+        print(" [-1 posFilaPil,posColPil,velFil,velCol] Fila, columna, velocitat vertical i horitzontal de la pilota en joc (2..118),(2..35),(-1.0..1.0),(-1.0..1.0). Aquesta opt es pot repetir fins a 9 vegades.")
+
+
+def util_ask_for_input_in_range_float(min, max, prompt=""):
+    while True:
+        try:
+            v = float(input(prompt + " dame input entre " + str(min) + " y " + str(max) + ": "))
+            if min <= v <= max:
+                return v
+            print("bro, entre " + str(min) + " y " + str(max) + "...")
+        except ValueError:
+            print("bro, un float")
+    return 0
 
 def util_ask_for_input_in_range(min, max, prompt=""):
     while True:
@@ -25,19 +66,6 @@ def util_ask_for_input_in_range(min, max, prompt=""):
     return 0
 
 
-class Config:
-    filename=None # Nom del fitxer on guardar la config
-    y=0 # Files
-    x=0 # Cols
-    width_goal=0 # Mida porteria
-    y_paddle=0 # Fila pal
-    x_paddle=0 # Col pal
-    width_paddle=0 # Mida pal
-    # n=0 # Num. de pilotas
-    serves = []
-    # serves="" # Info posFilaPil posColPil velFil velCol de pilotas
-    def validate():
-        return True
 
 def parse_args():
     cfg_args = Config()
@@ -46,10 +74,8 @@ def parse_args():
     except getopt.GetoptError as err:
         # print help information and exit:
         print(err)  # will print something like "option -a not recognized"
-        usage()
+        usage(err=True)
         sys.exit(2)
-    output = None
-    verbose = False
     for o, a in opts:
         if o == "-h":
             usage()
@@ -153,8 +179,10 @@ def load_config(filename):
             for n,line in enumerate(f):
                 if n == 0:
                     cfg_load.y, cfg_load.x, cfg_load.width_goal = line.split()
+                    cfg_load.y, cfg_load.x, cfg_load.width_goal = int(cfg_load.y), int(cfg_load.x), int(cfg_load.width_goal)
                 elif n == 1:
                     cfg_load.y_paddle, cfg_load.x_paddle, cfg_load.width_paddle = line.split()
+                    cfg_load.y_paddle, cfg_load.x_paddle, cfg_load.width_paddle = int(cfg_load.y_paddle), int(cfg_load.x_paddle), int(cfg_load.width_paddle)
                     pass
                 else:
                     ball_y, ball_x, ball_speed_y, ball_speed_x = line.split()
@@ -162,7 +190,7 @@ def load_config(filename):
 
     except FileNotFoundError as e:
         print("No hay file bro")
-
+    cfg_load.filename = filename
     return cfg_load
 
 
@@ -172,54 +200,57 @@ def validate_config(cfg_args, cfg_load):
         if cfg_load.y == 0:
             print("numFiles no esta ni en fitxer ni en los params")
         else:
-            cfg.y = cfg_load
+            cfg.y = cfg_load.y
     else:
-        cfg.y = cfg_args
+        cfg.y = cfg_args.y
 
     if cfg_args.x == 0:
         if cfg_load.x == 0:
             print("numColum no esta ni en fitxer ni en los params")
         else:
-            cfg.x = cfg_load
+            cfg.x = cfg_load.x
     else:
-        cfg.x = cfg_args
+        cfg.x = cfg_args.x
 
     if cfg_args.width_goal == 0:
         if cfg_load.width_goal == 0:
             print("midaPort no esta ni en fitxer ni en los params")
         else:
-            cfg.width_goal = cfg_load
+            cfg.width_goal = cfg_load.width_goal
     else:
-        cfg.width_goal = cfg_args
+        cfg.width_goal = cfg_args.width_goal
 
     if cfg_args.y_paddle == 0:
         if cfg_load.y_paddle == 0:
             print("posFilaPal no esta ni en fitxer ni en los params")
         else:
-            cfg.y_paddle = cfg_load
+            cfg.y_paddle = cfg_load.y_paddle
     else:
-        cfg.y_paddle = cfg_args
+        cfg.y_paddle = cfg_args.y_paddle
 
     if cfg_args.x_paddle == 0:
         if cfg_load.x_paddle == 0:
             print("posColPal no esta ni en fitxer ni en los params")
         else:
-            cfg.x_paddle = cfg_load
+            cfg.x_paddle = cfg_load.x_paddle
     else:
-        cfg.x_paddle = cfg_args
+        cfg.x_paddle = cfg_args.x_paddle
 
 
     if cfg_args.width_paddle == 0:
         if cfg_load.width_paddle == 0:
             print("midaPaleta no esta ni en fitxer ni en los params")
         else:
-            cfg.width_paddle = cfg_load
+            cfg.width_paddle = cfg_load.width_paddle
     else:
-        cfg.width_paddle = cfg_args
+        cfg.width_paddle = cfg_args.width_paddle
 
-    if not cfg_args.serves: # si no pasa balls by param
-        if not cfg_load.serves: # si no pasa balls en fitxer
-            print("bro no me has dado balls ni el config ni por params (con -1) :(")
+    # si no pasa balls by param
+    if not cfg_args.serves:
+        # si no pasa balls en fitxer
+        if not cfg_load.serves:
+            err("bro no me has dado balls ni el config ni por params")
+            exit(1)
         else:
             cfg.serves = cfg_load.serves
     else:
@@ -249,15 +280,38 @@ def validate_config(cfg_args, cfg_load):
     if not 3 <= cfg.width_paddle <= cfg.y - 1:
         cfg.x_paddle = util_ask_for_input_in_range(3, cfg.y - 1, "midaPaleta")
 
-    # TODO validate BOLAS
-    # ### #  (bash):
-	# ### # # validate balls
-	# ### # N=0 # cuenta otra vez, just in case
-	# ### # for BALL in ${SERVES}; do
-	# ### # 	if [ "${N}" -lt "9" ]; then # en principio si llega aqui, N es correcta :/
-	# ### # 		#TODO ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
-	# ### # 		BALL_Y=$(echo ${BALL} | cut -d, -f1)
+    tmp_serves = []
+    for n, serve in enumerate(cfg.serves):
+        ball_y, ball_x, ball_speed_y, ball_speed_x = serve
+        print("eval serve#" + str(n) + " :: " + str(serve))
+        #if ! util_is_in_range ${BALL_Y} 2 118; then
+        if not 2 <= ball_y <= 118: ##TODO ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
+            ball_y = util_ask_for_input_in_range(2, 118, "ball#" + str(n) + "_y")
+        if not 2 <= ball_x <= 35: ##TODO ATENCION! esto permite poner mis pelotas dentro Y FUERA de los rangos? numFiles?
+            ball_x = util_ask_for_input_in_range(2, 118, "ball#" + str(n) + "_x")
+        if not -1.0 <= ball_speed_y <= 1.0:
+            ball_speed_y = util_ask_for_input_in_range_float(-1.0, 1.0, "ball#" + str(n) + "speed_y")
+        if not -1.0 <= ball_speed_x <= 1.0:
+            ball_speed_x = util_ask_for_input_in_range_float(-1.0, 1.0, "ball#" + str(n) + "speed_x")
+        tmp_serves.append([ball_y, ball_x, ball_speed_y, ball_speed_x])
+
+    cfg.serves = tmp_serves
+    cfg.filename = cfg_load.filename
     return cfg
+
+def save_config(cfg):
+    try:
+        with open(cfg.filename, "w") as f:
+            #f.write(str(cfg.y) + " " + str(cfg.x) + " " + str(cfg.width_goal) + "\n")
+            f.write(f"{cfg.y} {cfg.x} {cfg.width_goal}\n")
+            f.write(f"{cfg.y_paddle} {cfg.x_paddle} {cfg.width_paddle}\n")
+            for serve in cfg.serves:
+                ball_y, ball_x, ball_speed_y, ball_speed_x = serve
+                f.write(f"{ball_x} {ball_x} {ball_speed_y} {ball_speed_x}\n")
+    except OSError as e:
+        err(str(e))
+        err("No puedo guardar cfg en : \"" + cfg.filename "\"")
+
 
 
 def main():
@@ -265,12 +319,13 @@ def main():
     print("Hola desde main")
     cfg_args = parse_args()
     if cfg_args.filename is None:
-        print("bro no hay file name o q")
+        err("bro no hay file name o q")
         sys.exit(1)
 
     cfg_load = load_config(cfg_args.filename) # Info que ya hay en el fitxer
 
     cfg = validate_config(cfg_args, cfg_load)
+    save_config(cfg)
     print("Adeu desde main")
 
 
