@@ -70,10 +70,10 @@ def util_ask_for_input_in_range(min, max, prompt=""):
 def parse_args():
     cfg_args = Config()
     try:
-        opts, args = getopt.getopt(sys.argv[1:], ":hn:f:c:p:0:m:1:", ["help", "output="])
-    except getopt.GetoptError as err:
+        opts, args = getopt.getopt(sys.argv[1:], ":hn:f:c:p:0:m:1:")
+    except getopt.GetoptError as e:
         # print help information and exit:
-        print(err)  # will print something like "option -a not recognized"
+        print(e)  # will print something like "option -a not recognized"
         usage(err=True)
         sys.exit(2)
     for o, a in opts:
@@ -159,8 +159,12 @@ def parse_args():
                 except ValueError:
                     print("error leer bola#" + str(len(cfg_args.serves)) + " bro, cuando pasas bola, q sea tipo [posFilaPil,posColPil,velFil,velCol]  , no (\"" + a + "\")")
                     sys.exit(1)
-                print("he leido uma bola")
-                cfg_args.serves.append([ball_y, ball_x, ball_speed_y, ball_speed_x])
+                print("he leido una bola")
+                if len(cfg_args.serves) < 9:
+                    cfg_args.serves.append([ball_y, ball_x, ball_speed_y, ball_speed_x])
+                else:
+                    err("demasiadas bolas bro")
+                    sys.exit(1)
 
 
 
@@ -189,7 +193,8 @@ def load_config(filename):
                     cfg_load.serves.append([int(ball_y), int(ball_x), float(ball_speed_y), float(ball_speed_x)])
 
     except FileNotFoundError as e:
-        print("No hay file bro")
+        # print("No hay file bro")
+        print("fitxer \"" + filename + "\" no existe, lo creamos")
     cfg_load.filename = filename
     return cfg_load
 
@@ -310,7 +315,7 @@ def save_config(cfg):
                 f.write(f"{ball_x} {ball_x} {ball_speed_y} {ball_speed_x}\n")
     except OSError as e:
         err(str(e))
-        err("No puedo guardar cfg en : \"" + cfg.filename "\"")
+        err("No puedo guardar cfg en : \"" + cfg.filename + "\"")
 
 
 
