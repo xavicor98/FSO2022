@@ -19,6 +19,8 @@ echo "   Prova 5: Passem tots els paràmetres i no hi ha fitxer i posem dues pio
 ./test.sh -n camp1.txt -f 25 -c 36 -p 20 -0 22,30 -m 10 -1 "21,20,-1.0,0.3 11,22,-1.0,0.3"
 #Hauria de crear el fitxer amb el contingut: 25 36 20 / 22 30 10 / 21 20 -1.0 0.3 / 11 22 -1.0 0.3
 
+#---------------------------------------------------------------------------
+
 echo "Pla de proves ampliat:"
 
 
