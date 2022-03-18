@@ -209,7 +209,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.y == 0:
         if cfg_load.y == 0:
-            print("numFiles no esta ni en fitxer ni en los params")
+            err("No he rebut numFiles ni per parametres (arg \"-f\"), ni pel fitxer.")
         else:
             cfg.y = cfg_load.y
     else:
@@ -217,7 +217,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.x == 0:
         if cfg_load.x == 0:
-            print("numColum no esta ni en fitxer ni en los params")
+            err("No he rebut numColum ni per parametres (arg \"-c\"), ni pel fitxer.")
         else:
             cfg.x = cfg_load.x
     else:
@@ -225,7 +225,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.width_goal == 0:
         if cfg_load.width_goal == 0:
-            print("midaPort no esta ni en fitxer ni en los params")
+            err("No he rebut midaPort ni per parametres (arg \"-p\"), ni pel fitxer.")
         else:
             cfg.width_goal = cfg_load.width_goal
     else:
@@ -233,7 +233,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.y_paddle == 0:
         if cfg_load.y_paddle == 0:
-            print("posFilaPal no esta ni en fitxer ni en los params")
+            err("No he rebut posFilaPal ni per parametres (arg \"-0\"), ni pel fitxer.")
         else:
             cfg.y_paddle = cfg_load.y_paddle
     else:
@@ -241,7 +241,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.x_paddle == 0:
         if cfg_load.x_paddle == 0:
-            print("posColPal no esta ni en fitxer ni en los params")
+            err("No he rebut posColPal ni per parametres (arg \"-0\"), ni pel fitxer.")
         else:
             cfg.x_paddle = cfg_load.x_paddle
     else:
@@ -250,7 +250,7 @@ def validate_config(cfg_args, cfg_load):
 
     if cfg_args.width_paddle == 0:
         if cfg_load.width_paddle == 0:
-            print("midaPaleta no esta ni en fitxer ni en los params")
+            err("No he rebut midaPaleta ni per parametres (arg \"-m\"), ni pel fitxer.")
         else:
             cfg.width_paddle = cfg_load.width_paddle
     else:
@@ -259,7 +259,8 @@ def validate_config(cfg_args, cfg_load):
     if not cfg_args.serves:
         if not cfg_load.serves:
             err("No he rebut pilotes ni per parametres (arg \"-1\"), ni pel fitxer.")
-            sys.exit(1)
+            sys.exit(1) # Tenemos que salir porque no tenemos suficiente info para guardar/crear un config "correcto"
+            # (Pedir serves por teclado no tiene sentido)
         else:
             cfg.serves = cfg_load.serves
     else:
