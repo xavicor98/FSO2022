@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "winsuport.h"		/* incloure definicions de funcions propies */
+#include <pthread.h>
 
 /* definicio de constants */
 #define MAX_THREADS	10
@@ -108,6 +109,9 @@ int dirPaleta = 0;
 int retard;			/* valor del retard de moviment, en mil.lisegons */
 
 char strin[LONGMISS];			/* variable per a generar missatges de text */
+
+/*-----------------------------Variables globals per MUR1 >:D---------------------------------------------------------------------------------------------------------*/
+int fi1, fi2;
 
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
@@ -345,98 +349,107 @@ float control_impacte2(int c_pil, float velc0) {
 
 /* funcio per moure la pilota: retorna un 1 si la pilota surt per la porteria,*/
 /* altrament retorna un 0 */
-int mou_pilota(void)
+void * mou_pilota(void * index)
 {
 	int f_h, c_h;
 	char rh, rv, rd;
 	int fora = 0;
 
-	f_h = pos_f + vel_f;	/* posicio hipotetica de la pilota (entera) */
-	c_h = pos_c + vel_c;
-	rh = rv = rd = ' ';
-	if ((f_h != f_pil) || (c_h != c_pil)) {
-	/* si posicio hipotetica no coincideix amb la posicio actual */
-		if (f_h != f_pil) {	/* provar rebot vertical */
-			rv = win_quincar(f_h, c_pil);	/* veure si hi ha algun obstacle */
-			if (rv != ' ') {	/* si hi ha alguna cosa */
-				comprovar_bloc(f_h, c_pil);
-				if (rv == '0')	/* col.lisió amb la paleta? */
-//					control_impacte();
-					vel_c = control_impacte2(c_pil, vel_c);
-				vel_f = -vel_f;	/* canvia sentit velocitat vertical */
-				f_h = pos_f + vel_f;	/* actualitza posicio hipotetica */
+	do {
+		f_h = pos_f + vel_f;	/* posicio hipotetica de la pilota (entera) */
+		c_h = pos_c + vel_c;
+		rh = rv = rd = ' ';
+		if ((f_h != f_pil) || (c_h != c_pil)) {
+		/* si posicio hipotetica no coincideix amb la posicio actual */
+			if (f_h != f_pil) {	/* provar rebot vertical */
+				rv = win_quincar(f_h, c_pil);	/* veure si hi ha algun obstacle */
+				if (rv != ' ') {	/* si hi ha alguna cosa */
+					comprovar_bloc(f_h, c_pil);
+					if (rv == '0')	/* col.lisió amb la paleta? */
+	//					control_impacte();
+						vel_c = control_impacte2(c_pil, vel_c);
+					vel_f = -vel_f;	/* canvia sentit velocitat vertical */
+					f_h = pos_f + vel_f;	/* actualitza posicio hipotetica */
+				}
 			}
-		}
-		if (c_h != c_pil) {	/* provar rebot horitzontal */
-			rh = win_quincar(f_pil, c_h);	/* veure si hi ha algun obstacle */
-			if (rh != ' ') {	/* si hi ha algun obstacle */
-				comprovar_bloc(f_pil, c_h);
-				/* TODO?: tractar la col.lisio lateral amb la paleta */
-				vel_c = -vel_c;	/* canvia sentit vel. horitzontal */
-				c_h = pos_c + vel_c;	/* actualitza posicio hipotetica */
+			if (c_h != c_pil) {	/* provar rebot horitzontal */
+				rh = win_quincar(f_pil, c_h);	/* veure si hi ha algun obstacle */
+				if (rh != ' ') {	/* si hi ha algun obstacle */
+					comprovar_bloc(f_pil, c_h);
+					/* TODO?: tractar la col.lisio lateral amb la paleta */
+					vel_c = -vel_c;	/* canvia sentit vel. horitzontal */
+					c_h = pos_c + vel_c;	/* actualitza posicio hipotetica */
+				}
 			}
-		}
-		if ((f_h != f_pil) && (c_h != c_pil)) {	/* provar rebot diagonal */
-			rd = win_quincar(f_h, c_h);
-			if (rd != ' ') {	/* si hi ha obstacle */
-				comprovar_bloc(f_h, c_h);
-				vel_f = -vel_f;
-				vel_c = -vel_c;	/* canvia sentit velocitats */
-				f_h = pos_f + vel_f;
-				c_h = pos_c + vel_c;	/* actualitza posicio entera */
+			if ((f_h != f_pil) && (c_h != c_pil)) {	/* provar rebot diagonal */
+				rd = win_quincar(f_h, c_h);
+				if (rd != ' ') {	/* si hi ha obstacle */
+					comprovar_bloc(f_h, c_h);
+					vel_f = -vel_f;
+					vel_c = -vel_c;	/* canvia sentit velocitats */
+					f_h = pos_f + vel_f;
+					c_h = pos_c + vel_c;	/* actualitza posicio entera */
+				}
 			}
-		}
-		/* mostrar la pilota a la nova posició */
-		if (win_quincar(f_h, c_h) == ' ') {	/* verificar posicio definitiva *//* si no hi ha obstacle */
-			win_escricar(f_pil, c_pil, ' ', NO_INV);	/* esborra pilota */
+			/* mostrar la pilota a la nova posició */
+			if (win_quincar(f_h, c_h) == ' ') {	/* verificar posicio definitiva *//* si no hi ha obstacle */
+				win_escricar(f_pil, c_pil, ' ', NO_INV);	/* esborra pilota */
+				pos_f += vel_f;
+				pos_c += vel_c;
+				f_pil = f_h;
+				c_pil = c_h;	/* actualitza posicio actual */
+				if (f_pil != n_fil - 1)	/* si no surt del taulell, */
+					win_escricar(f_pil, c_pil, '1', INVERS);	/* imprimeix pilota */
+				else
+					fora = 1;
+			}
+		} else {	/* posicio hipotetica = a la real: moure */
 			pos_f += vel_f;
 			pos_c += vel_c;
-			f_pil = f_h;
-			c_pil = c_h;	/* actualitza posicio actual */
-			if (f_pil != n_fil - 1)	/* si no surt del taulell, */
-				win_escricar(f_pil, c_pil, '1', INVERS);	/* imprimeix pilota */
-			else
-				fora = 1;
 		}
-	} else {	/* posicio hipotetica = a la real: moure */
-		pos_f += vel_f;
-		pos_c += vel_c;
-	}
-	return (nblocs==0 || fora);
+		fi2 = (nblocs==0 || fora);
+		win_retard(retard);	/* retard del joc */
+	} while (!fi1 && !fi2);
+	return NULL;
 }
 
 /* funcio per moure la paleta segons la tecla premuda */
 /* retorna un boolea indicant si l'usuari vol acabar */
-int mou_paleta(void)
+void * mou_paleta(void * nul)
 {
 	int tecla, result;
 
-	result = 0;
-	tecla = win_gettec();
-	if (tecla != 0) {
-		if ((tecla == TEC_DRETA)
-			&& ((c_pal + m_pal) < n_col - 1)) {
-				win_escricar(f_pal, c_pal, ' ', NO_INV);	/* esborra primer bloc */
-				c_pal++;	/* actualitza posicio */
-				win_escricar(f_pal, c_pal + m_pal - 1, '0', INVERS);	/*esc. ultim bloc */
+	do {
+		result = 0;
+		tecla = win_gettec();
+		if (tecla != 0) {
+			if ((tecla == TEC_DRETA)
+				&& ((c_pal + m_pal) < n_col - 1)) {
+					win_escricar(f_pal, c_pal, ' ', NO_INV);	/* esborra primer bloc */
+					c_pal++;	/* actualitza posicio */
+					win_escricar(f_pal, c_pal + m_pal - 1, '0', INVERS);	/*esc. ultim bloc */
+			}
+			if ((tecla == TEC_ESQUER) && (c_pal > 1)) {
+					win_escricar(f_pal, c_pal + m_pal - 1, ' ', NO_INV);	/*esborra ultim bloc */
+					c_pal--;	/* actualitza posicio */
+					win_escricar(f_pal, c_pal, '0', INVERS);	/* escriure primer bloc */
+			}
+			if (tecla == TEC_RETURN)
+				result = 1;	/* final per pulsacio RETURN */
+			dirPaleta = tecla;	/* per a afectar al moviment de les pilotes */
 		}
-		if ((tecla == TEC_ESQUER) && (c_pal > 1)) {
-				win_escricar(f_pal, c_pal + m_pal - 1, ' ', NO_INV);	/*esborra ultim bloc */
-				c_pal--;	/* actualitza posicio */
-				win_escricar(f_pal, c_pal, '0', INVERS);	/* escriure primer bloc */
-		}
-		if (tecla == TEC_RETURN)
-			result = 1;	/* final per pulsacio RETURN */
-		dirPaleta = tecla;	/* per a afectar al moviment de les pilotes */
-	}
-	return (result);
+		fi1 = (result);
+	} while (!fi1 && !fi2);
+	return NULL;
 }
 
 /* programa principal */
 int main(int n_args, char *ll_args[])
 {
-	int i, fi1, fi2;
+	int i;
 	FILE *fit_conf;
+	pthread_t thread_pilota, thread_paleta;
+	long int t;
 
 	if ((n_args != 2) && (n_args != 3)) {	/* si numero d'arguments incorrecte */
 		i = 0;
@@ -471,11 +484,23 @@ int main(int n_args, char *ll_args[])
 	if (inicialitza_joc() != 0)	/* intenta crear el taulell de joc */
 		exit(4);	/* aborta si hi ha algun problema amb taulell */
 
+	if (pthread_create(&thread_pilota, NULL,mou_pilota,(void *)NULL) == 0) {
+
+	} else {
+		fprintf(stderr, "Error: no s'ha pogut crear el thread pilota \n");
+	}
+	if (pthread_create(&thread_paleta, NULL,mou_paleta,(void *)NULL) == 0) {
+
+	} else {
+		fprintf(stderr, "Error: no s'ha pogut crear el thread paleta \n");
+	}
+
+	pthread_join(thread_pilota, (void **)&t);
+	pthread_join(thread_paleta, (void **)&t);
+
 	do {
-/********** bucle principal del joc **********/
-		fi1 = mou_paleta();
-		fi2=0;
-		fi2 = mou_pilota();
+		//TUDÚ printiempo --------------------------------------------------------
+		win_escristr("minuts:segons");
 		win_retard(retard);	/* retard del joc */
 	} while (!fi1 && !fi2);
 	
