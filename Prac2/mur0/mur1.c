@@ -366,7 +366,7 @@ void * mou_pilota(void * index) {
 				if (rv != ' ') { // si hi ha alguna cosa
 					comprovar_bloc(f_h, c_pil);
 					if (rv == '0') // col.lisió amb la paleta?
-						//					control_impacte();
+								   //					control_impacte();
 						vel_c = control_impacte2(c_pil, vel_c);
 					vel_f = -vel_f; // canvia sentit velocitat vertical
 					f_h = pos_f + vel_f; // actualitza posicio hipotetica
@@ -376,7 +376,7 @@ void * mou_pilota(void * index) {
 				rh = win_quincar(f_pil, c_h); // veure si hi ha algun obstacle
 				if (rh != ' ') { // si hi ha algun obstacle
 					comprovar_bloc(f_pil, c_h);
- 					// TODO?: tractar la col.lisio lateral amb la paleta
+					// TODO?: tractar la col.lisio lateral amb la paleta
 					vel_c = -vel_c; // canvia sentit vel. horitzontal
 					c_h = pos_c + vel_c; // actualitza posicio hipotetica
 				}
@@ -393,7 +393,7 @@ void * mou_pilota(void * index) {
 			}
 			// mostrar la pilota a la nova posició
 			if (win_quincar(f_h, c_h) == ' ') { // verificar posicio definitiva
-				// si no hi ha obstacle
+												// si no hi ha obstacle
 				win_escricar(f_pil, c_pil, ' ', NO_INV); // esborra pilota
 				pos_f += vel_f;
 				pos_c += vel_c;
@@ -451,7 +451,7 @@ int main(int n_args, char *ll_args[]) {
 
 	pthread_t thread_pilota, thread_paleta;
 	long int t; // unused
-	
+
 	time_t start, tmp;
 	int delta, m, s;
 	char strin[128];
@@ -504,14 +504,14 @@ int main(int n_args, char *ll_args[]) {
 	time(&start);
 
 	do {
-		
+
 		time(&tmp);
 		delta = difftime(tmp, start);
 		m = delta / 60;
 		s = delta % 60;
 		snprintf(strin, sizeof(strin), "%02d:%02d", m, s);
-		// win_escristr("minuts:segons");
 		win_escristr(strin);
+
 		win_retard(retard); // retard del joc
 	} while (!fi1 && !fi2);
 
