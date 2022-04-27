@@ -27,7 +27,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "winsuport.h" // incloure definicions de funcions propies
-#include <pthread.h>
+
+
+#include <pthread.h> // per crear threads
+#include <time.h> // mostrar temps de joc
 
 /* definicio de constants */
 #define MAX_THREADS 10
@@ -448,6 +451,10 @@ int main(int n_args, char *ll_args[]) {
 
 	pthread_t thread_pilota, thread_paleta;
 	long int t; // unused
+	
+	time_t start, tmp;
+	int delta, m, s;
+	char strin[128];
 
 	if ((n_args != 2) && (n_args != 3)) { // si numero d'arguments incorrecte
 		i = 0;
@@ -494,14 +501,23 @@ int main(int n_args, char *ll_args[]) {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread paleta \n");
 	}
 
-	pthread_join(thread_pilota, (void **)&t);
-	pthread_join(thread_paleta, (void **)&t);
+	time(&start);
 
 	do {
-		//TUDÚ printiempo --------------------------------------------------------
-		win_escristr("minuts:segons");
+		
+		time(&tmp);
+		delta = difftime(tmp, start);
+		m = delta / 60;
+		s = delta % 60;
+		snprintf(strin, sizeof(strin), "%02d:%02d", m, s);
+		// win_escristr("minuts:segons");
+		win_escristr(strin);
 		win_retard(retard); // retard del joc
 	} while (!fi1 && !fi2);
+
+
+	pthread_join(thread_pilota, (void **)&t);
+	pthread_join(thread_paleta, (void **)&t);
 
 	if (nblocs == 0) {
 		mostra_final("YOU WIN !");
