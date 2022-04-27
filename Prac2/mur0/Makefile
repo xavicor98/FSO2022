@@ -1,3 +1,5 @@
+run : mur1
+	./mur1 params.txt
 
 
 mur0 : mur0.c winsuport.o winsuport.h
