@@ -305,8 +305,9 @@ void control_impacte(void) {
 		if (vel_c <= 0.0) { // pilota cap a l'esquerra
 			vel_c = -vel_c - 0.2; // xoc: canvi de sentit i reduir velocitat
 		} else { // a favor: incrementar velocitat
-			if (vel_c <= 0.8)
+			if (vel_c <= 0.8) {
 				vel_c += 0.2;
+			}
 		}
 	} else {
 		if (dirPaleta == TEC_ESQUER) {
@@ -365,9 +366,10 @@ void * mou_pilota(void * index) {
 				rv = win_quincar(f_h, c_pil); // veure si hi ha algun obstacle
 				if (rv != ' ') { // si hi ha alguna cosa
 					comprovar_bloc(f_h, c_pil);
-					if (rv == '0') // col.lisió amb la paleta?
-								   //					control_impacte();
+					if (rv == '0') { // col.lisió amb la paleta?
+						// control_impacte(); ?
 						vel_c = control_impacte2(c_pil, vel_c);
+					}
 					vel_f = -vel_f; // canvia sentit velocitat vertical
 					f_h = pos_f + vel_f; // actualitza posicio hipotetica
 				}
@@ -392,8 +394,8 @@ void * mou_pilota(void * index) {
 				}
 			}
 			// mostrar la pilota a la nova posició
-			if (win_quincar(f_h, c_h) == ' ') { // verificar posicio definitiva
-												// si no hi ha obstacle
+			// verificar posicio definitiva
+			if (win_quincar(f_h, c_h) == ' ') { // si no hi ha obstacle
 				win_escricar(f_pil, c_pil, ' ', NO_INV); // esborra pilota
 				pos_f += vel_f;
 				pos_c += vel_c;
@@ -419,7 +421,6 @@ void * mou_pilota(void * index) {
 /* retorna un boolea indicant si l'usuari vol acabar */
 void * mou_paleta(void * nul) {
 	int tecla, result;
-
 	do {
 		result = 0;
 		tecla = win_gettec();
@@ -452,7 +453,7 @@ int main(int n_args, char *ll_args[]) {
 	pthread_t thread_pilota, thread_paleta;
 	long int t; // unused
 
-	time_t start, tmp;
+	time_t start, ara;
 	int delta, m, s;
 	char strin[128];
 
@@ -489,13 +490,13 @@ int main(int n_args, char *ll_args[]) {
 		exit(4); // aborta si hi ha algun problema amb taulell
 	}
 
-	if (pthread_create(&thread_pilota, NULL,mou_pilota,(void *)NULL) == 0) {
+	if (pthread_create(&thread_pilota, NULL, mou_pilota, (void *)NULL) == 0) {
 		//fprintf(stderr, "DEBUG: crea thread_pilota \n");
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread pilota.\n");
 	}
 
-	if (pthread_create(&thread_paleta, NULL,mou_paleta,(void *)NULL) == 0) {
+	if (pthread_create(&thread_paleta, NULL, mou_paleta, (void *)NULL) == 0) {
 		//fprintf(stderr, "DEBUG: crea thread_paleta.\n");
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread paleta \n");
@@ -504,9 +505,8 @@ int main(int n_args, char *ll_args[]) {
 	time(&start);
 
 	do {
-
-		time(&tmp);
-		delta = difftime(tmp, start);
+		time(&ara);
+		delta = difftime(ara, start);
 		m = delta / 60;
 		s = delta % 60;
 		snprintf(strin, sizeof(strin), "%02d:%02d", m, s);
