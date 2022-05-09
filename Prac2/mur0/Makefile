@@ -1,6 +1,7 @@
 run : mur1
 	./mur1 params.txt
-
+run_test : mur1
+	numactl --physcpubind=+1 ./mur1 params.txt
 
 mur0 : mur0.c winsuport.o winsuport.h
 	gcc -Wall mur0.c winsuport.o -o mur0 -lcurses
