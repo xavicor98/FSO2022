@@ -105,9 +105,9 @@ int n_fil, n_col; /* numero de files i columnes del taulell */
 int m_por; /* mida de la porteria (en caracters) */
 int f_pal, c_pal; /* posicio del primer caracter de la paleta */
 int m_pal; /* mida de la paleta */
-int f_pil, c_pil; /* posicio de la pilota, en valor enter */
-float pos_f, pos_c; /* posicio de la pilota, en valor real */
-float vel_f, vel_c; /* velocitat de la pilota, en valor real */
+
+
+
 int nblocs = 0;
 int dirPaleta = 0;
 int retard; /* valor del retard de moviment, en mil.lisegons */
@@ -117,6 +117,16 @@ char strin[LONGMISS]; /* variable per a generar missatges de text */
 /*-----------------------------Variables globals per MUR1 >:D---------------------------------------------------------------------------------------------------------*/
 int fi1, fi2;
 
+/* vars a vectors de >:C    fase 1.5*/
+int f_pil[MAXBALLS], c_pil[MAXBALLS]; /* posicio de la pilota, en valor enter */
+float pos_f[MAXBALLS], pos_c[MAXBALLS]; /* posicio de la pilota, en valor real */
+float vel_f[MAXBALLS], vel_c[MAXBALLS]; /* velocitat de la pilota, en valor real */
+int nballs; /* num. pilotas carregar en carrega_configuracio... */
+
+pthread_t threads_pilota[MAXBALLS];
+int n_threads_pilota;
+void * mou_pilota(void * index);
+
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
 /* la funcio tanca el fitxer, i retorna diferent de zero si hi ha problemes  */
@@ -125,21 +135,28 @@ int carrega_configuracio(FILE * fit) {
 
 	fscanf(fit, "%d %d %d\n", &n_fil, &n_col, &m_por); // camp de joc
 	fscanf(fit, "%d %d %d\n", &f_pal, &c_pal, &m_pal); // paleta
-	fscanf(fit, "%f %f %f %f\n", &pos_f, &pos_c, &vel_f, &vel_c); // pilota
-	if ((n_fil != 0) || (n_col != 0)) { // si no dimensions maximes
-		if ((n_fil < MIN_FIL) || (n_fil > MAX_FIL) || (n_col < MIN_COL) || (n_col > MAX_COL)) {
-			ret = 1;
-		} else if (m_por > n_col - 3) {
-			ret = 2;
-		} else if ((m_pal > n_col - 3) || (m_pal < 1) || (f_pal > n_fil-1) || (f_pal < 1) || (c_pal + m_pal > n_col -1 || c_pal < 1 )) {
-			ret = 3;
-		} else if ((pos_f < 1) || (pos_f >= n_fil - 3) || (pos_c < 1) || (pos_c > n_col - 1)) { // tres files especials: línia d'estat, porteria i paleta
-			ret = 4;
+	//
+	nballs = 0;
+	do {
+		fscanf(fit, "%f %f %f %f\n", &pos_f[nballs], &pos_c[nballs], &vel_f[nballs], &vel_c[nballs]); // pilota
+		if ((n_fil != 0) || (n_col != 0)) { // si no dimensions maximes
+			if ((n_fil < MIN_FIL) || (n_fil > MAX_FIL) || (n_col < MIN_COL) || (n_col > MAX_COL)) {
+				ret = 1;
+			} else if (m_por > n_col - 3) {
+				ret = 2;
+			} else if ((m_pal > n_col - 3) || (m_pal < 1) || (f_pal > n_fil-1) || (f_pal < 1) || (c_pal + m_pal > n_col -1 || c_pal < 1 )) {
+				ret = 3;
+			} else if ((pos_f[nballs] < 1) || (pos_f[nballs] >= n_fil - 3) || (pos_c[nballs] < 1) || (pos_c[nballs] > n_col - 1)) { // tres files especials: línia d'estat, porteria i paleta
+				ret = 4;
+			}
 		}
-	}
-	if ((vel_f < -1.0) || (vel_f > 1.0) || (vel_c < -1.0) || (vel_c > 1.0)) {
-		ret = 5;
-	}
+		if ((vel_f[nballs] < -1.0) || (vel_f[nballs] > 1.0) || (vel_c[nballs] < -1.0) || (vel_c[nballs] > 1.0)) {
+			ret = 5;
+		}
+		nballs++;
+	} while (!feof(fit) && (nballs < MAXBALLS) && (ret == 0)); // carregar pilotes del fit
+	fclose(fit);
+	fprintf(stderr, "#DEBUG HE CARGADO %d pelotas del fitxer!\n", nballs); // TODO DEBUG
 
 	if (ret != 0) { // si ha detectat algun error
 		fprintf(stderr, "Error en fitxer de configuracio:\n");
@@ -157,16 +174,15 @@ int carrega_configuracio(FILE * fit) {
 				fprintf(stderr, "\tf_pal= %d \tc_pal= %d \t m_pal=%d\n", f_pal,c_pal,m_pal);
 				break;
 			case 4:
-				fprintf(stderr, "\tposicio de la pilota incorrecta:\n");
-				fprintf(stderr, "\tpos_f= %.2f \tpos_c= %.2f\n", pos_f, pos_c);
+				fprintf(stderr, "\tposicio de la pilota #%d incorrecta:\n", nballs);
+				fprintf(stderr, "\tpos_f= %.2f \tpos_c= %.2f\n", pos_f[nballs-1], pos_c[nballs-1]);
 				break;
 			case 5:
-				fprintf(stderr, "\tvelocitat de la pilota incorrecta:\n");
-				fprintf(stderr, "\tvel_f= %.2f \tvel_c= %.2f\n", vel_f, vel_c);
+				fprintf(stderr, "\tvelocitat de la pilota #%d incorrecta:\n", nballs);
+				fprintf(stderr, "\tvel_f= %.2f \tvel_c= %.2f\n", vel_f[nballs-1], vel_c[nballs-1]);
 				break;
 		}
 	}
-	fclose(fit);
 	return (ret);
 }
 
@@ -218,15 +234,15 @@ int inicialitza_joc(void) {
 	}
 
 	// generar la pilota
-	if (pos_f > n_fil - 1) {
-		pos_f = n_fil - 1; // limita posicio inicial de la pilota
+	if (pos_f[0] > n_fil - 1) {
+		pos_f[0] = n_fil - 1; // limita posicio inicial de la pilota
 	}
-	if (pos_c > n_col - 1) {
-		pos_c = n_col - 1;
+	if (pos_c[0] > n_col - 1) {
+		pos_c[0] = n_col - 1;
 	}
-	f_pil = pos_f;
-	c_pil = pos_c; // dibuixar la pilota inicialment
-	win_escricar(f_pil, c_pil, '1', INVERS);
+	f_pil[0] = pos_f[0];
+	c_pil[0] = pos_c[0]; // dibuixar la pilota inicialment
+	win_escricar(f_pil[0], c_pil[0], '1', INVERS);
 
 	// generar els blocs
 	nb = 0;
@@ -276,6 +292,7 @@ void mostra_final(char *miss) {
 }
 
 /* Si hi ha una col.lisió pilota-bloci esborra el bloc */
+/* I genera nova pil */
 void comprovar_bloc(int f, int c) {
 	int col;
 	char quin = win_quincar(f, c);
@@ -292,7 +309,14 @@ void comprovar_bloc(int f, int c) {
 			col--;
 		}
 
-		// generar nova pilota ?
+		if ((quin == BLKCHAR) && (n_threads_pilota < nballs)) {
+			if (pthread_create(&threads_pilota[n_threads_pilota], NULL, mou_pilota, &n_threads_pilota) == 0) {
+				fprintf(stderr, "DEBUG: crea thread_pilota #%d @ comprovar_bloc\n", n_threads_pilota);
+			} else {
+				fprintf(stderr, "Error: no s'ha pogut crear el thread pilota #%d.\n", n_threads_pilota);
+			}
+				
+		}
 		nblocs--;
 	}
 }
@@ -300,31 +324,31 @@ void comprovar_bloc(int f, int c) {
 /* funcio per a calcular rudimentariament els efectes amb la pala */
 /* no te en compta si el moviment de la paleta no és recent */
 /* cal tenir en compta que després es calcula el rebot */
-void control_impacte(void) {
+void control_impacte(int i) {
 	if (dirPaleta == TEC_DRETA) {
-		if (vel_c <= 0.0) { // pilota cap a l'esquerra
-			vel_c = -vel_c - 0.2; // xoc: canvi de sentit i reduir velocitat
+		if (vel_c[i] <= 0.0) { // pilota cap a l'esquerra
+			vel_c[i] = -vel_c[i] - 0.2; // xoc: canvi de sentit i reduir velocitat
 		} else { // a favor: incrementar velocitat
-			if (vel_c <= 0.8) {
-				vel_c += 0.2;
+			if (vel_c[i] <= 0.8) {
+				vel_c[i] += 0.2;
 			}
 		}
 	} else {
 		if (dirPaleta == TEC_ESQUER) {
-			if (vel_c >= 0.0) { // pilota cap a la dreta
-				vel_c = -vel_c + 0.2; // xoc: canvi de sentit i reduir la velocitat
+			if (vel_c[i] >= 0.0) { // pilota cap a la dreta
+				vel_c[i] = -vel_c[i] + 0.2; // xoc: canvi de sentit i reduir la velocitat
 			} else { // a favor: incrementar velocitat
-				if (vel_c >= -0.8) {
-					vel_c -= 0.2;
+				if (vel_c[i] >= -0.8) {
+					vel_c[i] -= 0.2;
 				}
 			}
 		} else { // XXX trucs no documentats
 			if (dirPaleta == TEC_AMUNT) {
-				vel_c = 0.0; // vertical
+				vel_c[i] = 0.0; // vertical
 			} else {
 				if (dirPaleta == TEC_AVALL) {
-					if (vel_f <= 1.0) {
-						vel_f -= 0.2; // frenar
+					if (vel_f[i] <= 1.0) {
+						vel_f[i] -= 0.2; // frenar
 					}
 				}
 			}
@@ -333,6 +357,8 @@ void control_impacte(void) {
 	dirPaleta = 0; // reset perque ja hem aplicat l'efecte
 }
 
+
+//MAGIA
 float control_impacte2(int c_pil, float velc0) {
 	int distApal;
 	float vel_c;
@@ -353,63 +379,65 @@ float control_impacte2(int c_pil, float velc0) {
 /* funcio per moure la pilota: retorna un 1 si la pilota surt per la porteria,*/
 /* altrament retorna un 0 */
 void * mou_pilota(void * index) {
+	int i = *(int*)index;
+	n_threads_pilota++;
 	int f_h, c_h;
 	char rh, rv, rd;
 	int fora = 0;
 
 	do {
-		f_h = pos_f + vel_f; // posicio hipotetica de la pilota (entera)
-		c_h = pos_c + vel_c;
+		f_h = pos_f[i] + vel_f[i]; // posicio hipotetica de la pilota (entera)
+		c_h = pos_c[i] + vel_c[i];
 		rh = rv = rd = ' ';
-		if ((f_h != f_pil) || (c_h != c_pil)) { // si posicio hipotetica no coincideix amb la posicio actual
-			if (f_h != f_pil) { // provar rebot vertical
-				rv = win_quincar(f_h, c_pil); // veure si hi ha algun obstacle
+		if ((f_h != f_pil[i]) || (c_h != c_pil[i])) { // si posicio hipotetica no coincideix amb la posicio actual
+			if (f_h != f_pil[i]) { // provar rebot vertical
+				rv = win_quincar(f_h, c_pil[i]); // veure si hi ha algun obstacle
 				if (rv != ' ') { // si hi ha alguna cosa
-					comprovar_bloc(f_h, c_pil);
+					comprovar_bloc(f_h, c_pil[i]);
 					if (rv == '0') { // col.lisió amb la paleta?
 						// control_impacte(); ?
-						vel_c = control_impacte2(c_pil, vel_c);
+						vel_c[i] = control_impacte2(c_pil[i], vel_c[i]);
 					}
-					vel_f = -vel_f; // canvia sentit velocitat vertical
-					f_h = pos_f + vel_f; // actualitza posicio hipotetica
+					vel_f[i] = -vel_f[i]; // canvia sentit velocitat vertical
+					f_h = pos_f[i] + vel_f[i]; // actualitza posicio hipotetica
 				}
 			}
-			if (c_h != c_pil) { // provar rebot horitzontal
-				rh = win_quincar(f_pil, c_h); // veure si hi ha algun obstacle
+			if (c_h != c_pil[i]) { // provar rebot horitzontal
+				rh = win_quincar(f_pil[i], c_h); // veure si hi ha algun obstacle
 				if (rh != ' ') { // si hi ha algun obstacle
-					comprovar_bloc(f_pil, c_h);
+					comprovar_bloc(f_pil[i], c_h);
 					// TODO?: tractar la col.lisio lateral amb la paleta
-					vel_c = -vel_c; // canvia sentit vel. horitzontal
-					c_h = pos_c + vel_c; // actualitza posicio hipotetica
+					vel_c[i] = -vel_c[i]; // canvia sentit vel. horitzontal
+					c_h = pos_c[i] + vel_c[i]; // actualitza posicio hipotetica
 				}
 			}
-			if ((f_h != f_pil) && (c_h != c_pil)) { // provar rebot diagonal
+			if ((f_h != f_pil[i]) && (c_h != c_pil[i])) { // provar rebot diagonal
 				rd = win_quincar(f_h, c_h);
 				if (rd != ' ') { // si hi ha obstacle
 					comprovar_bloc(f_h, c_h);
-					vel_f = -vel_f;
-					vel_c = -vel_c; // canvia sentit velocitats
-					f_h = pos_f + vel_f;
-					c_h = pos_c + vel_c; // actualitza posicio entera
+					vel_f[i] = -vel_f[i];
+					vel_c[i] = -vel_c[i]; // canvia sentit velocitats
+					f_h = pos_f[i] + vel_f[i];
+					c_h = pos_c[i] + vel_c[i]; // actualitza posicio entera
 				}
 			}
 			// mostrar la pilota a la nova posició
 			// verificar posicio definitiva
 			if (win_quincar(f_h, c_h) == ' ') { // si no hi ha obstacle
-				win_escricar(f_pil, c_pil, ' ', NO_INV); // esborra pilota
-				pos_f += vel_f;
-				pos_c += vel_c;
-				f_pil = f_h;
-				c_pil = c_h; // actualitza posicio actual
-				if (f_pil != n_fil - 1) { // si no surt del taulell,
-					win_escricar(f_pil, c_pil, '1', INVERS); // imprimeix pilota
+				win_escricar(f_pil[i], c_pil[i], ' ', NO_INV); // esborra pilota
+				pos_f[i] += vel_f[i];
+				pos_c[i] += vel_c[i];
+				f_pil[i] = f_h;
+				c_pil[i] = c_h; // actualitza posicio actual
+				if (f_pil[i] != n_fil - 1) { // si no surt del taulell,
+					win_escricar(f_pil[i], c_pil[i], '1', INVERS); // imprimeix pilota
 				} else {
 					fora = 1;
 				}
 			}
 		} else { // posicio hipotetica = a la real: moure
-			pos_f += vel_f;
-			pos_c += vel_c;
+			pos_f[i] += vel_f[i];
+			pos_c[i] += vel_c[i];
 		}
 		fi2 = (nblocs==0 || fora);
 		win_retard(retard); // retard del joc
@@ -450,7 +478,8 @@ int main(int n_args, char *ll_args[]) {
 	int i;
 	FILE *fit_conf;
 
-	pthread_t thread_pilota, thread_paleta;
+	pthread_t thread_paleta;
+	n_threads_pilota = 0;
 	long int t; // unused
 
 	time_t start, ara;
@@ -489,8 +518,8 @@ int main(int n_args, char *ll_args[]) {
 	if (inicialitza_joc() != 0) { // intenta crear el taulell de joc
 		exit(4); // aborta si hi ha algun problema amb taulell
 	}
-
-	if (pthread_create(&thread_pilota, NULL, mou_pilota, (void *)NULL) == 0) {
+	
+	if (pthread_create(&threads_pilota[0], NULL, mou_pilota, &n_threads_pilota) == 0) {
 		//fprintf(stderr, "DEBUG: crea thread_pilota \n");
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread pilota.\n");
@@ -516,7 +545,9 @@ int main(int n_args, char *ll_args[]) {
 	} while (!fi1 && !fi2);
 
 
-	pthread_join(thread_pilota, (void **)&t);
+	for (i = 0; i < n_threads_pilota; i++) {
+		pthread_join(threads_pilota[i], (void **)&t);
+	}
 	pthread_join(thread_paleta, (void **)&t);
 
 	if (nblocs == 0) {
