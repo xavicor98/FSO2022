@@ -23,7 +23,7 @@
 
 /* #include <stdint.h> //intptr_t for 64bits machines */
 
-#include <bits/pthreadtypes.h>
+//#include <bits/pthreadtypes.h>
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
 #include <string.h>
