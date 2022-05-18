@@ -16,6 +16,14 @@ mur2 : mur2.c winsuport.o winsuport.h
 	gcc -Wall mur2.c winsuport.o -o mur2 -lcurses -lpthread
 
 
+
+mur3 : pilota3 mur3.c winsuport.o winsuport.h
+	gcc -Wall mur3.c winsuport.o -o mur3 -lcurses -lpthread
+
+pilota3 : pilota3.c winsuport.o winsuport.h
+	gcc -Wall pilota3.c winsuport.o -o pilota3 -lcurses -lpthread
+
+
 winsuport.o : winsuport.c winsuport.h
 	gcc -Wall -c winsuport.c -o winsuport.o
 
