@@ -1,7 +1,6 @@
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
 #include <unistd.h>
-#include <memory.h>
 
 #include "memoria.h"
 #include "winsuport2.h" // incloure definicions de funcions propies

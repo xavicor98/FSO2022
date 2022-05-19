@@ -1,43 +1,19 @@
-/*****************************************************************************/
-/*                                                                           */
-/*                           mur0.c                                          */
-/*                                                                           */
-/*  Programa inicial d'exemple per a les practiques 2 de FSO.                */
-/*                                                                           */
-/*  Compilar i executar:                                                     */
-/*     El programa invoca les funcions definides a "winsuport.c", les        */
-/*     quals proporcionen una interficie senzilla per crear una finestra     */
-/*     de text on es poden escriure caracters en posicions especifiques de   */
-/*     la pantalla (basada en CURSES); per tant, el programa necessita ser   */
-/*     compilat amb la llibreria 'curses':                                   */
-/*                                                                           */
-/*       $ gcc -Wall -c winsuport.c -o winsuport.o                           */
-/*       $ gcc -Wall mur0.c winsuport.o -o mur0 -lcurses                     */
-/*                                                                           */
-/*  Al tenir una orientació vertical cal tenir un terminal amb prou files.   */
-/*  Per exemple:                                                             */
-/*               xterm -geometry 80x50                                       */
-/*               gnome-terminal --geometry 80x50                             */
-/*                                                                           */
-/*****************************************************************************/
-
-/* #include <stdint.h> //intptr_t for 64bits machines */
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
-#include <memory.h>
-//#include <string.h>
+
 
 
 #include <pthread.h> // per crear threads
 #include <time.h> // mostrar temps de joc
 
-#include <sys/wait.h> //wait
 #include <unistd.h> //fork()
+#include <sys/wait.h> //waitpid()
 
-#include "memoria.h"
-#include "winsuport2.h"
+#include <memory.h> //memcpy()  // se puede hacer un for() pero da palo
+#include "winsuport2.h" // win_ini() &co.
+#include "memoria.h" //ini_mem()  :D
 
-#include "mur3.h"
+#include "mur3.h" // defines & enums
 
 int id_win;
 void* ptr_win;
@@ -112,13 +88,14 @@ int retard; /* valor del retard de moviment, en mil.lisegons */
 char strin[LONGMISS]; /* variable per a generar missatges de text */
 
 /*-----------------------------Variables globals per MUR1 >:D---------------------------------------------------------------------------------------------------------*/
-int * fi1, *fi2;
+int * fi1, *fi2; //compartidas (pilota3 tiene que saber cuando acaba el juego, y tiene que poder decir cuando acaba el juego por fi2)
 
 /* vars a vectors de >:C    fase 1.5*/
 int f_pil[MAXBALLS], c_pil[MAXBALLS]; /* posicio de la pilota, en valor enter */
 float pos_f[MAXBALLS], pos_c[MAXBALLS]; /* posicio de la pilota, en valor real */
 float vel_f[MAXBALLS], vel_c[MAXBALLS]; /* velocitat de la pilota, en valor real */
 int nballs; /* num. pilotas carregar en carrega_configuracio... */
+// se pasan por param. a pilota3
 
 
 /*-----------------------------Variables globals per MUR2 >:D---------------------------------------------------------------------------------------------------------*/
@@ -128,7 +105,6 @@ pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
 
 /*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
 pid_t pid_pilota[MAXBALLS];
-//void * mou_pilota(void * index);
 
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
@@ -244,7 +220,7 @@ int inicialitza_joc(void) {
 	}
 	
 	/*
-	// generar la pilota
+	// generar la pilota (Dejamos que lo haga en/desde su propio proc...)
 	if (pos_f[0] > n_fil - 1) {
 		pos_f[0] = n_fil - 1; // limita posicio inicial de la pilota
 	}
@@ -307,64 +283,6 @@ void mostra_final(char *miss) {
 	//getchar();
 }
 
-/* funcio per a calcular rudimentariament els efectes amb la pala */
-/* no te en compta si el moviment de la paleta no és recent */
-/* cal tenir en compta que després es calcula el rebot */
-void control_impacte(int i) {
-	if (dirPaleta == TEC_DRETA) {
-		if (vel_c[i] <= 0.0) { // pilota cap a l'esquerra
-			vel_c[i] = -vel_c[i] - 0.2; // xoc: canvi de sentit i reduir velocitat
-		} else { // a favor: incrementar velocitat
-			if (vel_c[i] <= 0.8) {
-				vel_c[i] += 0.2;
-			}
-		}
-	} else {
-		if (dirPaleta == TEC_ESQUER) {
-			if (vel_c[i] >= 0.0) { // pilota cap a la dreta
-				vel_c[i] = -vel_c[i] + 0.2; // xoc: canvi de sentit i reduir la velocitat
-			} else { // a favor: incrementar velocitat
-				if (vel_c[i] >= -0.8) {
-					vel_c[i] -= 0.2;
-				}
-			}
-		} else { // XXX trucs no documentats
-			if (dirPaleta == TEC_AMUNT) {
-				vel_c[i] = 0.0; // vertical
-			} else {
-				if (dirPaleta == TEC_AVALL) {
-					if (vel_f[i] <= 1.0) {
-						vel_f[i] -= 0.2; // frenar
-					}
-				}
-			}
-		}
-	}
-	dirPaleta = 0; // reset perque ja hem aplicat l'efecte
-}
-
-
-//MAGIA
-float control_impacte2(int c_pil, float velc0) {
-	int distApal;
-	float vel_c;
-	
-	//pthread_mutex_lock(&mutex_pal);
-	distApal = c_pil - c_pal;
-	//pthread_mutex_unlock(&mutex_pal);
-	if (distApal >= 2*m_pal/3) { // costat dreta
-		vel_c = 0.5;
-	} else if (distApal <= m_pal/3) { // costat esquerra
-		vel_c = -0.5;
-	} else if (distApal == m_pal/2) { // al centre
-		vel_c = 0.0;
-	} else { // rebot normal
-		vel_c = velc0;
-	}
-	return vel_c;
-}
-
-
 /* funcio per moure la paleta segons la tecla premuda */
 /* retorna un boolea indicant si l'usuari vol acabar */
 void * mou_paleta(void * nul) {
@@ -417,19 +335,6 @@ int main(int n_args, char *ll_args[]) {
 	int delta, m, s;
 	char strin[128];
 
-	//TODO PROCS
-	int id_args = ini_mem(sizeof(float) * (ARGTYPECOUNT+(4*nballs)));
-	float * args = map_mem(id_args);
-	char sz_id_args[MAX_LEN_ARG_STR];
-	snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args);
-
-	fi1 = (int*) &args[ARG_FI1];
-	fi2 = (int*) &args[ARG_FI2];
-	int *n_procs_pilota = (int*) &args[ARG_NPROCS];
-	*fi1 = 0;
-	*fi2 = 0;
-	*n_procs_pilota = 0;
-
 	if ((n_args != 2) && (n_args != 3)) { // si numero d'arguments incorrecte
 		i = 0;
 		do {
@@ -455,11 +360,23 @@ int main(int n_args, char *ll_args[]) {
 	} else {
 		retard = 100; // altrament, fixar retard per defecte
 	}
+	//TODO PROCS
+	int id_args = ini_mem(sizeof(float) * (ARGTYPECOUNT+(4*nballs)));
+	float * args = map_mem(id_args); // guardar todas las variables compartidas en mem compartida
+	char sz_id_args[MAX_LEN_ARG_STR];
+	snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args); // para pasar id_args a ./pilota3 por string
+
+	fi1 = (int*) &args[ARG_FI1];
+	fi2 = (int*) &args[ARG_FI2];
+	int *n_procs_pilota = (int*) &args[ARG_NPROCS];
+	*fi1 = 0;
+	*fi2 = 0;
+	*n_procs_pilota = 0;
 
 	printf("Joc del Mur: prem RETURN per continuar:\n");
 	//getchar();
 
-	if (inicialitza_joc() != 0) { // intenta crear el taulell de joc
+	if (inicialitza_joc()) { // intenta crear el taulell de joc
 		exit(4); // aborta si hi ha algun problema amb taulell
 	}
 
@@ -487,7 +404,8 @@ int main(int n_args, char *ll_args[]) {
 		args[ARG_NPROCS] =_;
 		args[ARG_NBALLS] = nballs;
 		args[ARG_NBLOCS] = nblocs;
-
+		
+		// pilota3 quiere saber las pos&vel de las pil del config para saber DONDE crear nuevas
 		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_POS_F*nballs], pos_f, sizeof(float)*nballs);
 		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_POS_C*nballs], pos_c, sizeof(float)*nballs);
 		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_VEL_F*nballs], vel_f, sizeof(float)*nballs);
@@ -525,7 +443,7 @@ int main(int n_args, char *ll_args[]) {
 	} while (!(*fi1) && !(*fi2));
 
 
-	// TODO waitpidS
+	// esperar a los otros procs
 	int _tmp = 0;
 	for (i = 0; i<(*n_procs_pilota); i++) {
 		waitpid(pid_pilota[i], &_tmp, 0);
@@ -533,7 +451,7 @@ int main(int n_args, char *ll_args[]) {
 	}
 	pthread_join(thread_paleta, (void **)&t);
 
-	if (nblocs == 0) {
+	if (args[ARG_NBLOCS] < 1) {
 		mostra_final("YOU WIN !");
 	} else {
 		mostra_final("GAME OVER");
