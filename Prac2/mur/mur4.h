@@ -14,7 +14,8 @@
 
 
 #define MAX_LEN_ARG_STR 24
-#define RETARD_DEFAULT 100
+#define RETARD_DEFAULT 20
+//#define RETARD_DEFAULT 100
 
 enum ArgType {
 	ARG_INDEX,
@@ -32,6 +33,7 @@ enum ArgType {
 	ARG_C_PAL,
 
 	ARG_SEM_WIN,
+	ARG_SEM_PAL,
 	ARG_SEM_ARGS,
 
 	ARGTYPE_COUNT,

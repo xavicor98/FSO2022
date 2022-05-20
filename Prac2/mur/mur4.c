@@ -81,7 +81,6 @@ int m_pal; /* mida de la paleta */
 
 
 int nblocs = 0;
-int dirPaleta = 0;
 int retard; /* valor del retard de moviment, en mil.lisegons */
 
 char strin[LONGMISS]; /* variable per a generar missatges de text */
@@ -98,12 +97,13 @@ int nballs; /* num. pilotas carregar en carrega_configuracio... */
 
 
 /*-----------------------------Variables globals per MUR2 >:D---------------------------------------------------------------------------------------------------------*/
-
+FILE * fd_debug;
 /*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
 pid_t * pids;
 int * ptr_c_pal;
 /*-----------------------------Variables globals per MUR4 >:D---------------------------------------------------------------------------------------------------------*/
 int id_sem_win;
+int id_sem_pal;
 int id_sem_args;
 
 
@@ -137,8 +137,7 @@ int carrega_configuracio(FILE * fit) {
 		c_pil[nballs] = pos_c[nballs];
 		nballs++;
 	} while (!feof(fit) && (nballs < MAXBALLS) && (ret == 0)); // carregar pilotes del fit
-	fclose(fit);
-	fprintf(stderr, "#DEBUG HE CARGADO %d pelotas del fitxer!\n", nballs); // TODO DEBUG
+	fprintf(fd_debug, "DEBUG: [mur4.c] Cargado %d pelotas del fitxer\n", nballs);
 
 	if (ret != 0) { // si ha detectat algun error
 		fprintf(stderr, "Error en fitxer de configuracio:\n");
@@ -296,17 +295,20 @@ void * mou_paleta(void * nul) {
 		if (tecla != 0) {
 			if ((tecla == TEC_DRETA) && (((*ptr_c_pal) + m_pal) < n_col - 1)) {
 				win_escricar(f_pal, (*ptr_c_pal), ' ', NO_INV); // esborra primer bloc
+
+				waitS(id_sem_pal);
 				(*ptr_c_pal)++; // actualitza posicio
+				signalS(id_sem_pal);
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, '0', INVERS); //esc. ultim bloc
 			} else if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, ' ', NO_INV); //esborra ultim bloc
+				waitS(id_sem_pal);
 				(*ptr_c_pal)--; // actualitza posicio
+				signalS(id_sem_pal);
 				win_escricar(f_pal, (*ptr_c_pal), '0', INVERS); // escriure primer bloc
-			} else if (tecla == 'q') {
-			//if (tecla == TEC_RETURN) {
+			} else if (tecla == 'q') { //TODO //if (tecla == TEC_RETURN) {
 				result = 1; // final per pulsacio RETURN
 			}
-			dirPaleta = tecla; // per a afectar al moviment de les pilotes
 		}
 		*fi1 = (result);
 		signalS(id_sem_win);
@@ -334,15 +336,23 @@ int main(int n_args, char *ll_args[]) {
 		exit(1);
 	}
 
+	fd_debug = fopen("error_log.txt", "w");
+	fprintf(fd_debug, "DEBUG: [mur4.c] Hello world...\n");
+
 	fit_conf = fopen(ll_args[1], "rt"); // intenta obrir el fitxer
 	if (!fit_conf) {
+		fclose(fit_conf);
 		fprintf(stderr, "Error: no s'ha pogut obrir el fitxer \'%s\'\n", ll_args[1]);
+		fclose(fd_debug);
 		exit(2);
 	}
 
 	if (carrega_configuracio(fit_conf) != 0) { // llegir dades del fitxer
+		fclose(fit_conf);
+		fclose(fd_debug);
 		exit(3); // aborta si hi ha algun problema en el fitxer
 	}
+	fclose(fit_conf);
 
 	if (n_args == 3) { // si s'ha especificat parametre de retard
 		retard = atoi(ll_args[2]); // convertir-lo a enter
@@ -369,8 +379,10 @@ int main(int n_args, char *ll_args[]) {
 	pids = (pid_t*) &args[ARGTYPE_COUNT+OFFSET_PIDS*nballs];
 
 	id_sem_win = ini_sem(1); //semafor win inicialment obert
+	id_sem_pal = ini_sem(1); //semafor paleta inicialment obert
 	id_sem_args = ini_sem(1); //semafor args inicialment obert
 	args[ARG_SEM_WIN] = id_sem_win;
+	args[ARG_SEM_PAL] = id_sem_pal;
 	args[ARG_SEM_ARGS] = id_sem_args;
 
 	printf("Joc del Mur: prem RETURN per continuar:\n");
@@ -404,9 +416,10 @@ int main(int n_args, char *ll_args[]) {
 
 	pids[_] = fork();
 	if (pids[_] == (pid_t) 0) {
-		fprintf(stderr, "DEBUG: BRBRBRBBRBR pu\n");
+		fprintf(fd_debug, "DEBUG: [mur4.c] fork() primera pil.\n");
 		execlp("./pilota4", "pilota4", sz_id_args, (char*) NULL);
 		fprintf(stderr, "DEBUG: no puc executar el proc pilota4\n");
+		fclose(fd_debug);
 		exit(1);
 	} else if (pids[_] > 0) {
 		(*n_procs_pilota)++;
@@ -416,7 +429,7 @@ int main(int n_args, char *ll_args[]) {
 	}
 
 	if (pthread_create(&thread_paleta, NULL, mou_paleta, (void *)NULL) == 0) {
-		//fprintf(stderr, "DEBUG: crea thread_paleta.\n");
+		fprintf(fd_debug, "DEBUG: [mur4.c] crea el thread_paleta...\n");
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread paleta \n");
 	}
@@ -450,13 +463,17 @@ int main(int n_args, char *ll_args[]) {
 	} else {
 		mostra_final("GAME OVER");
 	}
-
+	
 	win_fi(); // tanca les curses
 
 	elim_mem(id_args);
 	elim_mem(id_win);
 	elim_sem(id_sem_win);
+	elim_sem(id_sem_pal);
 	elim_sem(id_sem_args);
+
+	fprintf(fd_debug, "DEBUG: [mur4.c] Adeu!\n");
+	fclose(fd_debug);
 
 	return (0); // retorna sense errors d'execucio
 }
