@@ -53,3 +53,8 @@ missatge.o : missatge.c missatge.h
 clean :
 	rm -f winsuport.o winsuport2.o semafor.o missatge.o memoria.o mur0 mur1 mur2 mur3 pilota3 mur4 pilota4
 
+
+entrega: clean
+	rm -f entrega.tgz
+	tar -czf entrega.tgz *.c *.h params.txt proves/*.txt Makefile
+
