@@ -31,6 +31,9 @@ enum ArgType {
 	ARG_M_PAL,
 	ARG_C_PAL,
 
+	ARG_SEM_WIN,
+	ARG_SEM_ARGS,
+
 	ARGTYPE_COUNT,
 };
 

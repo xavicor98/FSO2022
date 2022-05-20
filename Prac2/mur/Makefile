@@ -28,7 +28,7 @@ pilota3 : pilota3.c mur3.h winsuport2.o winsuport2.h memoria.o
 mur4 : pilota4 mur4.c mur4.h winsuport2.o winsuport2.h memoria.o semafor.o missatge.o
 	gcc -Wall -g mur4.c winsuport2.o memoria.o semafor.o missatge.o  -o mur4 -lcurses -lpthread
 
-pilota4 : pilota3.c mur4.h winsuport2.o winsuport2.h memoria.o semafor.o missatge.o
+pilota4 : pilota4.c mur4.h winsuport2.o winsuport2.h memoria.o semafor.o missatge.o
 	gcc -Wall -g pilota4.c winsuport2.o memoria.o semafor.o missatge.o -o pilota4 -lcurses
 
 

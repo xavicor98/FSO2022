@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #include <pthread.h> // per crear threads
-//#include <sys/types.h>
 #include <time.h> // mostrar temps de joc
 
 #include <unistd.h> //fork()
@@ -99,14 +98,14 @@ int nballs; /* num. pilotas carregar en carrega_configuracio... */
 
 
 /*-----------------------------Variables globals per MUR2 >:D---------------------------------------------------------------------------------------------------------*/
-pthread_mutex_t mutex_win = PTHREAD_MUTEX_INITIALIZER; // lo dejamos para sincronizar entre thread paleta y main (no perdemos)
-//pthread_mutex_t mutex_pal = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
 
 /*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
 pid_t * pids;
 int * ptr_c_pal;
 /*-----------------------------Variables globals per MUR4 >:D---------------------------------------------------------------------------------------------------------*/
+int id_sem_win;
+int id_sem_args;
+
 
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
@@ -292,35 +291,25 @@ void * mou_paleta(void * nul) {
 	int tecla, result;
 	do {
 		result = 0;
-		pthread_mutex_lock(&mutex_win);
+		waitS(id_sem_win);
 		tecla = win_gettec();
-		pthread_mutex_unlock(&mutex_win);
 		if (tecla != 0) {
 			if ((tecla == TEC_DRETA) && (((*ptr_c_pal) + m_pal) < n_col - 1)) {
-				pthread_mutex_lock(&mutex_win);
 				win_escricar(f_pal, (*ptr_c_pal), ' ', NO_INV); // esborra primer bloc
-				//pthread_mutex_lock(&mutex_pal);
 				(*ptr_c_pal)++; // actualitza posicio
-				//pthread_mutex_unlock(&mutex_pal);
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, '0', INVERS); //esc. ultim bloc
-				pthread_mutex_unlock(&mutex_win);
-			}
-			if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
-				pthread_mutex_lock(&mutex_win);
+			} else if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, ' ', NO_INV); //esborra ultim bloc
-				//pthread_mutex_lock(&mutex_pal);
 				(*ptr_c_pal)--; // actualitza posicio
-				//pthread_mutex_unlock(&mutex_pal);
 				win_escricar(f_pal, (*ptr_c_pal), '0', INVERS); // escriure primer bloc
-				pthread_mutex_unlock(&mutex_win);
-			}
+			} else if (tecla == 'q') {
 			//if (tecla == TEC_RETURN) {
-			if (tecla == 'q') {
 				result = 1; // final per pulsacio RETURN
 			}
 			dirPaleta = tecla; // per a afectar al moviment de les pilotes
 		}
 		*fi1 = (result);
+		signalS(id_sem_win);
 	} while (!(*fi1) && !(*fi2));
 	return NULL;
 }
@@ -363,6 +352,7 @@ int main(int n_args, char *ll_args[]) {
 		retard = RETARD_DEFAULT; // altrament, fixar retard per defecte
 	}
 	//TODO PROCS + (considerar si esto deberia estar dento de inicialitza_joc?
+	int _;
 	int id_args = ini_mem(sizeof(float) * (ARGTYPE_COUNT+(ARGINFO_COUNT*nballs)));
 	float * args = map_mem(id_args); // guardar todas las variables compartidas en mem compartida // TODO ser un (void*)?
 	char sz_id_args[MAX_LEN_ARG_STR];
@@ -378,26 +368,22 @@ int main(int n_args, char *ll_args[]) {
 	*ptr_c_pal = c_pal;
 	pids = (pid_t*) &args[ARGTYPE_COUNT+OFFSET_PIDS*nballs];
 
+	id_sem_win = ini_sem(1); //semafor win inicialment obert
+	id_sem_args = ini_sem(1); //semafor args inicialment obert
+	args[ARG_SEM_WIN] = id_sem_win;
+	args[ARG_SEM_ARGS] = id_sem_args;
+
 	printf("Joc del Mur: prem RETURN per continuar:\n");
-	//getchar();
+	getchar();
 
 	if (inicialitza_joc()) { // intenta crear el taulell de joc
 		exit(4); // aborta si hi ha algun problema amb taulell
 	}
 
-	int _ = pthread_mutex_init(&mutex_win, NULL);
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_win)  returns [%d]\n", _);
-	//_ = pthread_mutex_init(&mutex_pal, NULL); // no me toques la paleta
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_pal)  returns [%d]\n", _);
-
-	//_ = pthread_mutex_init(&mutex_pil, NULL); //TOOD desde ahora se sincroniza con semaforos
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_pil)  returns [%d]\n", _);
-
-	
 	win_update(); // update debug despues de init
 
 	//TOOD PROCS
-	//pthread_mutex_lock(&mutex_pil);
+	waitS(id_sem_args); // que nadie toque los args pls (desde el proc nuevo se hace el signal)
 	_ = *n_procs_pilota;
 	args[ARG_INDEX] = _; //index de la pelota que se va a crear
 	args[ARG_ID_WIN] =  id_win;
@@ -426,8 +412,8 @@ int main(int n_args, char *ll_args[]) {
 		(*n_procs_pilota)++;
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el proc de la primera pilota.\n");
+		signalS(id_sem_args); // si no crea el proc, el proc no hace signal, asi que lo hacemos aqui
 	}
-	//pthread_mutex_unlock(&mutex_pil);
 
 	if (pthread_create(&thread_paleta, NULL, mou_paleta, (void *)NULL) == 0) {
 		//fprintf(stderr, "DEBUG: crea thread_paleta.\n");
@@ -438,15 +424,15 @@ int main(int n_args, char *ll_args[]) {
 	time(&start);
 
 	do {
-		win_update();
 		time(&ara);
 		delta = difftime(ara, start);
 		m = delta / 60;
 		s = delta % 60;
 		snprintf(strin, sizeof(strin), "%02d:%02d", m, s);
-		pthread_mutex_lock(&mutex_win);
+		waitS(id_sem_win);
 		win_escristr(strin);
-		pthread_mutex_unlock(&mutex_win);
+		win_update();
+		signalS(id_sem_win);
 		win_retard(RETARD_DEFAULT); // cada ~100ms ?
 	} while (!(*fi1) && !(*fi2));
 
@@ -467,12 +453,10 @@ int main(int n_args, char *ll_args[]) {
 
 	win_fi(); // tanca les curses
 
-	pthread_mutex_destroy(&mutex_win);
-	//pthread_mutex_destroy(&mutex_pal);
-	//pthread_mutex_destroy(&mutex_pil);
-
 	elim_mem(id_args);
 	elim_mem(id_win);
+	elim_sem(id_sem_win);
+	elim_sem(id_sem_args);
 
 	return (0); // retorna sense errors d'execucio
 }

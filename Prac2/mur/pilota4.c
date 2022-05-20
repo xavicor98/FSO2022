@@ -1,6 +1,5 @@
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
-//#include <sys/types.h>
 #include <unistd.h>
 #include <memory.h>
 
@@ -55,13 +54,14 @@ int *nblocs;
 
 
 /*-----------------------------Variables globals per MUR4 >:D---------------------------------------------------------------------------------------------------------*/
+int id_sem_win;
+int id_sem_args;
 
 /* Si hi ha una col.lisió pilota-bloci esborra el bloc */
 /* I genera nova pil */
 void comprovar_bloc(int f, int c) {
 	int col;
 
-	//pthread_mutex_lock(&mutex_win);
 	char quin = win_quincar(f, c);
 	if (quin == BLKCHAR || quin == FRNTCHAR) {
 		col = c;
@@ -74,14 +74,9 @@ void comprovar_bloc(int f, int c) {
 			win_escricar(f, col, ' ', NO_INV);
 			col--;
 		}
-		//pthread_mutex_unlock(&mutex_win);
 
-		//pthread_mutex_lock(&mutex_pil);
+		waitS(id_sem_args); // que nadie toque args, voy a leer n_procs y pasar args
 		if ((quin == BLKCHAR) && (*n_procs_pilota < nballs)) {
-			//int tmp = n_threads_pilota;
-			//TODO crea otra pilota
-			//TOOD PROCS
-			//pthread_mutex_lock(&mutex_pil);
 			int _ = *n_procs_pilota; //TDDO temporal, da palo poner *n_procs_pilota
 			pids[_] = fork();
 			if (pids[_] == (pid_t) 0) {
@@ -111,9 +106,10 @@ void comprovar_bloc(int f, int c) {
 				(*n_procs_pilota)++;
 			} else {
 				fprintf(stderr, "Error: no s'ha pogut crear el proc pilota #%d.\n", *n_procs_pilota);
+				signalS(id_sem_args);
 			}
-			//pthread_mutex_unlock(&mutex_pil);
-				
+		} else {
+			signalS(id_sem_args);
 		}
 		//pthread_mutex_unlock(&mutex_pil);
 		(*nblocs)--;
@@ -151,8 +147,8 @@ int mou_pilota(int index) {
 	c_h = pos_c[index] + vel_c[index];
 	rh = rv = rd = ' ';
 	if ((f_h != f_pil) || (c_h != c_pil)) { // si posicio hipotetica no coincideix amb la posicio actual
+		waitS(id_sem_win); // que nadie toque el tablero!
 		if (f_h != f_pil) { // provar rebot vertical
-			//pthread_mutex_lock(&mutex_win);
 			rv = win_quincar(f_h, c_pil); // veure si hi ha algun obstacle
 			if (rv != ' ') { // si hi ha alguna cosa
 				//pthread_mutex_unlock(&mutex_win);
@@ -212,6 +208,7 @@ int mou_pilota(int index) {
 				fora = 1;
 			}
 		}
+		signalS(id_sem_win);
 		//pthread_mutex_unlock(&mutex_win);
 	} else { // posicio hipotetica = a la real: moure
 		pos_f[index] += vel_f[index];
@@ -242,6 +239,9 @@ int main(int n_args, char *ll_args[]) {
 	
 	m_pal = args[ARG_M_PAL];
 	ptr_c_pal = (int*) &args[ARG_C_PAL];
+
+	id_sem_win = args[ARG_SEM_WIN];
+	id_sem_args = args[ARG_SEM_ARGS];
 	
 	pos_f = &args[ARGTYPE_COUNT+OFFSET_PIL_POS_F*nballs];
 	pos_c = &args[ARGTYPE_COUNT+OFFSET_PIL_POS_C*nballs];
@@ -256,6 +256,8 @@ int main(int n_args, char *ll_args[]) {
 	for (int i = 0; i < nballs; i++) {
 		fprintf(f, "DEBUG: [pilota4.c] pasa pil[%d] pf=%f, pc=%f vf=%f vc=%f\n\n", i, pos_f[i], pos_c[i], vel_f[i], vel_c[i]);
 	}
+
+	signalS(id_sem_args); // indicar que he acabado de leer todos los args
 
 	ptr_win = map_mem(id_win);
 	if (ptr_win == (int*) -1) {
