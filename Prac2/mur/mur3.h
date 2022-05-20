@@ -14,6 +14,7 @@
 
 
 #define MAX_LEN_ARG_STR 24
+#define RETARD_DEFAULT 100
 
 enum ArgType {
 	ARG_INDEX,

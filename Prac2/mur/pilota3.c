@@ -247,7 +247,7 @@ int main(int n_args, char *ll_args[]) {
 
 	f_pil = pos_f[index];
 	c_pil = pos_c[index];
-	fprintf(stderr, "DEBUG: [pilota3.c] SKDASKDSAKDSSA WORLD\n");
+	fprintf(f, "DEBUG: [pilota3.c] Hello world WORLD\n");
 
 	for (int i = 0; i < nballs; i++) {
 		fprintf(f, "DEBUG: [pilota3.c] pasa pil[%d] pf=%f, pc=%f vf=%f vc=%f\n\n", i, pos_f[i], pos_c[i], vel_f[i], vel_c[i]);
