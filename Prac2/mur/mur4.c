@@ -11,7 +11,9 @@
 #include "winsuport2.h" // win_ini() &co.
 #include "memoria.h" //ini_mem()  :D
 
-#include "mur3.h" // defines & enums
+#include "mur4.h" // defines & enums
+#include "semafor.h"
+#include "missatge.h"
 
 int id_win;
 void* ptr_win;
@@ -79,30 +81,31 @@ int m_pal; /* mida de la paleta */
 
 
 int nblocs = 0;
-int dirPaleta = 0;
 int retard; /* valor del retard de moviment, en mil.lisegons */
 
 char strin[LONGMISS]; /* variable per a generar missatges de text */
 
 /*-----------------------------Variables globals per MUR1 >:D---------------------------------------------------------------------------------------------------------*/
-int * fi1, *fi2; //compartidas (pilota3 tiene que saber cuando acaba el juego, y tiene que poder decir cuando acaba el juego por fi2)
+int * fi1, *fi2; //compartidas (pilota4 tiene que saber cuando acaba el juego, y tiene que poder decir cuando acaba el juego por fi2)
 
 /* vars a vectors de >:C    fase 1.5*/
 int f_pil[MAXBALLS], c_pil[MAXBALLS]; /* posicio de la pilota, en valor enter */
 float pos_f[MAXBALLS], pos_c[MAXBALLS]; /* posicio de la pilota, en valor real */
 float vel_f[MAXBALLS], vel_c[MAXBALLS]; /* velocitat de la pilota, en valor real */
 int nballs; /* num. pilotas carregar en carrega_configuracio... */
-// se pasan por param. a pilota3
+// se pasan por param. a pilota4
 
 
 /*-----------------------------Variables globals per MUR2 >:D---------------------------------------------------------------------------------------------------------*/
-pthread_mutex_t mutex_win = PTHREAD_MUTEX_INITIALIZER; // lo dejamos para sincronizar entre thread paleta y main (no perdemos)
-//pthread_mutex_t mutex_pal = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
-
+FILE * fd_debug;
 /*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
 pid_t * pids;
 int * ptr_c_pal;
+/*-----------------------------Variables globals per MUR4 >:D---------------------------------------------------------------------------------------------------------*/
+int id_sem_win;
+int id_sem_pal;
+int id_sem_args;
+
 
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
@@ -134,8 +137,7 @@ int carrega_configuracio(FILE * fit) {
 		c_pil[nballs] = pos_c[nballs];
 		nballs++;
 	} while (!feof(fit) && (nballs < MAXBALLS) && (ret == 0)); // carregar pilotes del fit
-	fclose(fit);
-	fprintf(stderr, "#DEBUG HE CARGADO %d pelotas del fitxer!\n", nballs); // TODO DEBUG
+	fprintf(fd_debug, "DEBUG: [mur4.c] Cargado %d pelotas del fitxer\n", nballs);
 
 	if (ret != 0) { // si ha detectat algun error
 		fprintf(stderr, "Error en fitxer de configuracio:\n");
@@ -288,35 +290,28 @@ void * mou_paleta(void * nul) {
 	int tecla, result;
 	do {
 		result = 0;
-		pthread_mutex_lock(&mutex_win);
+		waitS(id_sem_win);
 		tecla = win_gettec();
-		pthread_mutex_unlock(&mutex_win);
 		if (tecla != 0) {
 			if ((tecla == TEC_DRETA) && (((*ptr_c_pal) + m_pal) < n_col - 1)) {
-				pthread_mutex_lock(&mutex_win);
 				win_escricar(f_pal, (*ptr_c_pal), ' ', NO_INV); // esborra primer bloc
-				//pthread_mutex_lock(&mutex_pal);
+
+				waitS(id_sem_pal);
 				(*ptr_c_pal)++; // actualitza posicio
-				//pthread_mutex_unlock(&mutex_pal);
+				signalS(id_sem_pal);
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, '0', INVERS); //esc. ultim bloc
-				pthread_mutex_unlock(&mutex_win);
-			}
-			if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
-				pthread_mutex_lock(&mutex_win);
+			} else if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
 				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, ' ', NO_INV); //esborra ultim bloc
-				//pthread_mutex_lock(&mutex_pal);
+				waitS(id_sem_pal);
 				(*ptr_c_pal)--; // actualitza posicio
-				//pthread_mutex_unlock(&mutex_pal);
+				signalS(id_sem_pal);
 				win_escricar(f_pal, (*ptr_c_pal), '0', INVERS); // escriure primer bloc
-				pthread_mutex_unlock(&mutex_win);
-			}
-			//if (tecla == TEC_RETURN) {
-			if (tecla == 'q') {
+			} else if (tecla == 'q') { //TODO //if (tecla == TEC_RETURN) {
 				result = 1; // final per pulsacio RETURN
 			}
-			dirPaleta = tecla; // per a afectar al moviment de les pilotes
 		}
 		*fi1 = (result);
+		signalS(id_sem_win);
 	} while (!(*fi1) && !(*fi2));
 	return NULL;
 }
@@ -341,15 +336,23 @@ int main(int n_args, char *ll_args[]) {
 		exit(1);
 	}
 
+	fd_debug = fopen("error_log.txt", "w");
+	fprintf(fd_debug, "DEBUG: [mur4.c] Hello world...\n");
+
 	fit_conf = fopen(ll_args[1], "rt"); // intenta obrir el fitxer
 	if (!fit_conf) {
+		fclose(fit_conf);
 		fprintf(stderr, "Error: no s'ha pogut obrir el fitxer \'%s\'\n", ll_args[1]);
+		fclose(fd_debug);
 		exit(2);
 	}
 
 	if (carrega_configuracio(fit_conf) != 0) { // llegir dades del fitxer
+		fclose(fit_conf);
+		fclose(fd_debug);
 		exit(3); // aborta si hi ha algun problema en el fitxer
 	}
+	fclose(fit_conf);
 
 	if (n_args == 3) { // si s'ha especificat parametre de retard
 		retard = atoi(ll_args[2]); // convertir-lo a enter
@@ -359,10 +362,11 @@ int main(int n_args, char *ll_args[]) {
 		retard = RETARD_DEFAULT; // altrament, fixar retard per defecte
 	}
 	//TODO PROCS + (considerar si esto deberia estar dento de inicialitza_joc?
+	int _;
 	int id_args = ini_mem(sizeof(float) * (ARGTYPE_COUNT+(ARGINFO_COUNT*nballs)));
 	float * args = map_mem(id_args); // guardar todas las variables compartidas en mem compartida // TODO ser un (void*)?
 	char sz_id_args[MAX_LEN_ARG_STR];
-	snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args); // para pasar id_args a ./pilota3 por string
+	snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args); // para pasar id_args a ./pilota4 por string
 
 	fi1 = (int*) &args[ARG_FI1];
 	fi2 = (int*) &args[ARG_FI2];
@@ -374,26 +378,24 @@ int main(int n_args, char *ll_args[]) {
 	*ptr_c_pal = c_pal;
 	pids = (pid_t*) &args[ARGTYPE_COUNT+OFFSET_PIDS*nballs];
 
+	id_sem_win = ini_sem(1); //semafor win inicialment obert
+	id_sem_pal = ini_sem(1); //semafor paleta inicialment obert
+	id_sem_args = ini_sem(1); //semafor args inicialment obert
+	args[ARG_SEM_WIN] = id_sem_win;
+	args[ARG_SEM_PAL] = id_sem_pal;
+	args[ARG_SEM_ARGS] = id_sem_args;
+
 	printf("Joc del Mur: prem RETURN per continuar:\n");
-	//getchar();
+	getchar();
 
 	if (inicialitza_joc()) { // intenta crear el taulell de joc
 		exit(4); // aborta si hi ha algun problema amb taulell
 	}
 
-	int _ = pthread_mutex_init(&mutex_win, NULL);
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_win)  returns [%d]\n", _);
-	//_ = pthread_mutex_init(&mutex_pal, NULL); // no me toques la paleta
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_pal)  returns [%d]\n", _);
-
-	//_ = pthread_mutex_init(&mutex_pil, NULL); //TOOD desde ahora se sincroniza con semaforos
-	//fprintf(stderr, "DEBUG: pthread_mutex_init(mutex_pil)  returns [%d]\n", _);
-
-	
 	win_update(); // update debug despues de init
 
 	//TOOD PROCS
-	//pthread_mutex_lock(&mutex_pil);
+	waitS(id_sem_args); // que nadie toque los args pls (desde el proc nuevo se hace el signal)
 	_ = *n_procs_pilota;
 	args[ARG_INDEX] = _; //index de la pelota que se va a crear
 	args[ARG_ID_WIN] =  id_win;
@@ -405,7 +407,7 @@ int main(int n_args, char *ll_args[]) {
 	args[ARG_M_PAL] = m_pal; //# width paleta
 	//args[ARG_C_PAL] = c_pal; //DEBUG no tocar (??)
 	
-	// pilota3 quiere saber las pos&vel de las pil del config para saber DONDE crear nuevas
+	// pilota4 quiere saber las pos&vel de las pil del config para saber DONDE crear nuevas
 	memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_F*nballs], pos_f, sizeof(float)*nballs);
 	memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_C*nballs], pos_c, sizeof(float)*nballs);
 	memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_VEL_F*nballs], vel_f, sizeof(float)*nballs);
@@ -414,19 +416,20 @@ int main(int n_args, char *ll_args[]) {
 
 	pids[_] = fork();
 	if (pids[_] == (pid_t) 0) {
-		fprintf(stderr, "DEBUG: BRBRBRBBRBR pu\n");
-		execlp("./pilota3", "pilota3", sz_id_args, (char*) NULL);
-		fprintf(stderr, "DEBUG: no puc executar el proc pilota3\n");
+		fprintf(fd_debug, "DEBUG: [mur4.c] fork() primera pil.\n");
+		execlp("./pilota4", "pilota4", sz_id_args, (char*) NULL);
+		fprintf(stderr, "DEBUG: no puc executar el proc pilota4\n");
+		fclose(fd_debug);
 		exit(1);
 	} else if (pids[_] > 0) {
 		(*n_procs_pilota)++;
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el proc de la primera pilota.\n");
+		signalS(id_sem_args); // si no crea el proc, el proc no hace signal, asi que lo hacemos aqui
 	}
-	//pthread_mutex_unlock(&mutex_pil);
 
 	if (pthread_create(&thread_paleta, NULL, mou_paleta, (void *)NULL) == 0) {
-		//fprintf(stderr, "DEBUG: crea thread_paleta.\n");
+		fprintf(fd_debug, "DEBUG: [mur4.c] crea el thread_paleta...\n");
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el thread paleta \n");
 	}
@@ -434,15 +437,15 @@ int main(int n_args, char *ll_args[]) {
 	time(&start);
 
 	do {
-		win_update();
 		time(&ara);
 		delta = difftime(ara, start);
 		m = delta / 60;
 		s = delta % 60;
 		snprintf(strin, sizeof(strin), "%02d:%02d", m, s);
-		pthread_mutex_lock(&mutex_win);
+		waitS(id_sem_win);
 		win_escristr(strin);
-		pthread_mutex_unlock(&mutex_win);
+		win_update();
+		signalS(id_sem_win);
 		win_retard(RETARD_DEFAULT); // cada ~100ms ?
 	} while (!(*fi1) && !(*fi2));
 
@@ -460,15 +463,17 @@ int main(int n_args, char *ll_args[]) {
 	} else {
 		mostra_final("GAME OVER");
 	}
-
+	
 	win_fi(); // tanca les curses
-
-	pthread_mutex_destroy(&mutex_win);
-	//pthread_mutex_destroy(&mutex_pal);
-	//pthread_mutex_destroy(&mutex_pil);
 
 	elim_mem(id_args);
 	elim_mem(id_win);
+	elim_sem(id_sem_win);
+	elim_sem(id_sem_pal);
+	elim_sem(id_sem_args);
+
+	fprintf(fd_debug, "DEBUG: [mur4.c] Adeu!\n");
+	fclose(fd_debug);
 
 	return (0); // retorna sense errors d'execucio
 }
