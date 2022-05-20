@@ -1,10 +1,7 @@
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
 
-
-
 #include <pthread.h> // per crear threads
-#include <sys/types.h>
 #include <time.h> // mostrar temps de joc
 
 #include <unistd.h> //fork()

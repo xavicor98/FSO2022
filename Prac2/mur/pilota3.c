@@ -1,6 +1,5 @@
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <memory.h>
 
