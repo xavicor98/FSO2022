@@ -4,6 +4,7 @@
 
 
 #include <pthread.h> // per crear threads
+#include <sys/types.h>
 #include <time.h> // mostrar temps de joc
 
 #include <unistd.h> //fork()
@@ -104,7 +105,8 @@ pthread_mutex_t mutex_pal = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
 
 /*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
-pid_t pid_pilota[MAXBALLS];
+pid_t * pids;
+int * ptr_c_pal;
 
 /* funcio per carregar i interpretar el fitxer de configuracio de la partida */
 /* el parametre ha de ser un punter a fitxer de text, posicionat al principi */
@@ -288,28 +290,27 @@ void mostra_final(char *miss) {
 void * mou_paleta(void * nul) {
 	int tecla, result;
 	do {
-		win_update();
 		result = 0;
 		//pthread_mutex_lock(&mutex_win);
 		tecla = win_gettec();
 		//pthread_mutex_unlock(&mutex_win);
 		if (tecla != 0) {
-			if ((tecla == TEC_DRETA) && ((c_pal + m_pal) < n_col - 1)) {
+			if ((tecla == TEC_DRETA) && (((*ptr_c_pal) + m_pal) < n_col - 1)) {
 				//pthread_mutex_lock(&mutex_win);
-				win_escricar(f_pal, c_pal, ' ', NO_INV); // esborra primer bloc
+				win_escricar(f_pal, (*ptr_c_pal), ' ', NO_INV); // esborra primer bloc
 				//pthread_mutex_lock(&mutex_pal);
-				c_pal++; // actualitza posicio
+				(*ptr_c_pal)++; // actualitza posicio
 				//pthread_mutex_unlock(&mutex_pal);
-				win_escricar(f_pal, c_pal + m_pal - 1, '0', INVERS); //esc. ultim bloc
+				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, '0', INVERS); //esc. ultim bloc
 				//pthread_mutex_unlock(&mutex_win);
 			}
-			if ((tecla == TEC_ESQUER) && (c_pal > 1)) {
+			if ((tecla == TEC_ESQUER) && ((*ptr_c_pal) > 1)) {
 				//pthread_mutex_lock(&mutex_win);
-				win_escricar(f_pal, c_pal + m_pal - 1, ' ', NO_INV); //esborra ultim bloc
+				win_escricar(f_pal, (*ptr_c_pal) + m_pal - 1, ' ', NO_INV); //esborra ultim bloc
 				//pthread_mutex_lock(&mutex_pal);
-				c_pal--; // actualitza posicio
+				(*ptr_c_pal)--; // actualitza posicio
 				//pthread_mutex_unlock(&mutex_pal);
-				win_escricar(f_pal, c_pal, '0', INVERS); // escriure primer bloc
+				win_escricar(f_pal, (*ptr_c_pal), '0', INVERS); // escriure primer bloc
 				//pthread_mutex_unlock(&mutex_win);
 			}
 			//if (tecla == TEC_RETURN) {
@@ -360,18 +361,21 @@ int main(int n_args, char *ll_args[]) {
 	} else {
 		retard = 100; // altrament, fixar retard per defecte
 	}
-	//TODO PROCS
-	int id_args = ini_mem(sizeof(float) * (ARGTYPECOUNT+(4*nballs)));
-	float * args = map_mem(id_args); // guardar todas las variables compartidas en mem compartida
+	//TODO PROCS + (considerar si esto deberia estar dento de inicialitza_joc?
+	int id_args = ini_mem(sizeof(float) * (ARGTYPE_COUNT+(ARGINFO_COUNT*nballs)));
+	float * args = map_mem(id_args); // guardar todas las variables compartidas en mem compartida // TODO ser un (void*)?
 	char sz_id_args[MAX_LEN_ARG_STR];
 	snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args); // para pasar id_args a ./pilota3 por string
 
 	fi1 = (int*) &args[ARG_FI1];
 	fi2 = (int*) &args[ARG_FI2];
 	int *n_procs_pilota = (int*) &args[ARG_NPROCS];
+	ptr_c_pal = (int*) &args[ARG_C_PAL];
 	*fi1 = 0;
 	*fi2 = 0;
 	*n_procs_pilota = 0;
+	*ptr_c_pal = c_pal;
+	pids = (pid_t*) &args[ARGTYPE_COUNT+OFFSET_PIDS*nballs];
 
 	printf("Joc del Mur: prem RETURN per continuar:\n");
 	//getchar();
@@ -393,27 +397,30 @@ int main(int n_args, char *ll_args[]) {
 	//TOOD PROCS
 	//pthread_mutex_lock(&mutex_pil);
 	_ = *n_procs_pilota;
-	pid_pilota[_] = fork();
-	if (pid_pilota[_] == (pid_t) 0) {
+	args[ARG_NPROCS] =_;
+	pids[_] = fork();
+	if (pids[_] == (pid_t) 0) {
 		fprintf(stderr, "DEBUG: BRBRBRBBRBR pu\n");
 		args[ARG_INDEX] = _;
 		args[ARG_ID_WIN] =  id_win;
 		args[ARG_RETARD] = retard;
 		args[ARG_F] =  n_fil;
 		args[ARG_C] = n_col;
-		args[ARG_NPROCS] =_;
 		args[ARG_NBALLS] = nballs;
 		args[ARG_NBLOCS] = nblocs;
+		args[ARG_M_PAL] = m_pal;
+		//args[ARG_C_PAL] = c_pal;
 		
 		// pilota3 quiere saber las pos&vel de las pil del config para saber DONDE crear nuevas
-		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_POS_F*nballs], pos_f, sizeof(float)*nballs);
-		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_POS_C*nballs], pos_c, sizeof(float)*nballs);
-		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_VEL_F*nballs], vel_f, sizeof(float)*nballs);
-		memcpy(&args[ARGTYPECOUNT+OFFSET_PIL_VEL_C*nballs], vel_c, sizeof(float)*nballs);
+		memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_F*nballs], pos_f, sizeof(float)*nballs);
+		memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_C*nballs], pos_c, sizeof(float)*nballs);
+		memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_VEL_F*nballs], vel_f, sizeof(float)*nballs);
+		memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_VEL_C*nballs], vel_c, sizeof(float)*nballs);
+		memcpy(&args[ARGTYPE_COUNT+OFFSET_PIDS*nballs], pids, sizeof(pid_t)*nballs);
 		execlp("./pilota3", "pilota3", sz_id_args, (char*) NULL);
 		fprintf(stderr, "DEBUG: no puc executar el proc pilota3\n");
 		exit(1);
-	} else if (pid_pilota[_] > 0) {
+	} else if (pids[_] > 0) {
 		(*n_procs_pilota)++;
 	} else {
 		fprintf(stderr, "Error: no s'ha pogut crear el proc de la primera pilota.\n");
@@ -446,7 +453,7 @@ int main(int n_args, char *ll_args[]) {
 	// esperar a los otros procs
 	int _tmp = 0;
 	for (i = 0; i<(*n_procs_pilota); i++) {
-		waitpid(pid_pilota[i], &_tmp, 0);
+		waitpid(pids[i], &_tmp, 0);
 		//_tmp >>= 8;
 	}
 	pthread_join(thread_paleta, (void **)&t);

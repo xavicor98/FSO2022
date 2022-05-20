@@ -27,7 +27,10 @@ enum ArgType {
 	ARG_NPROCS,
 	ARG_NBLOCS,
 
-	ARGTYPECOUNT,
+	ARG_M_PAL,
+	ARG_C_PAL,
+
+	ARGTYPE_COUNT,
 };
 
 enum ArgInfoPil {
@@ -35,4 +38,6 @@ enum ArgInfoPil {
 	OFFSET_PIL_POS_C,
 	OFFSET_PIL_VEL_F,
 	OFFSET_PIL_VEL_C,
+	OFFSET_PIDS,
+	ARGINFO_COUNT,
 };

@@ -1,6 +1,8 @@
 #include <stdio.h> // incloure definicions de funcions estandard
 #include <stdlib.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <memory.h>
 
 #include "memoria.h"
 #include "winsuport2.h" // incloure definicions de funcions propies
@@ -12,41 +14,43 @@
 
 /* definicio de constants */
 /* variables globals */
-
-int n_fil, n_col; /* numero de files i columnes del taulell */
-int m_por; /* mida de la porteria (en caracters) */
-int f_pal, c_pal; /* posicio del primer caracter de la paleta */
-int m_pal; /* mida de la paleta */
-
-
-
-
-int *nblocs;
-int *nprocs;
-
-int dirPaleta = 0;
+char strin[LONGMISS]; /* variable per a generar missatges de text */
 int retard; /* valor del retard de moviment, en mil.lisegons */
 
-char strin[LONGMISS]; /* variable per a generar missatges de text */
+
+//pthread_mutex_t mutex_win = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t mutex_pal = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
+
+/*-----------------------------Variables globals per MUR3 >:D---------------------------------------------------------------------------------------------------------*/
+int id_args;
+float * args;
+FILE * f;
 
 int *fi1, *fi2;
+
+pid_t * pids;
+int * n_procs_pilota;
+
+int n_fil, n_col; /* numero de files i columnes del taulell */
+//int m_por; /* mida de la porteria (en caracters) */
+
+int f_pal; //unused, usa el caracter '0' para detectar si rebota con la paleta...
+int * ptr_c_pal; /* posicio del primer caracter de la paleta */
+int m_pal; /* mida de la paleta */
+//int dirPaleta = 0;
+
+
 
 /* vars pilota? vectors de >:C    fase 1.5*/
 int f_pil, c_pil; /* posicio de la pilota, en valor enter */
 float *pos_f, *pos_c; /* posicio de la pilota, en valor real */
 float *vel_f, *vel_c; /* velocitat de la pilota, en valor real */
 int nballs; /* num. pilotas carregar en carrega_configuracio... */
-
-//pthread_t threads_pilota[MAXBALLS];
-int n_threads_pilota;
+int *nblocs;
 //void mou_pilota(int index);
 
-/*-----------------------------Variables globals per MUR2 >:D---------------------------------------------------------------------------------------------------------*/
-//pthread_mutex_t mutex_win = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_t mutex_pal = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_t mutex_pil = PTHREAD_MUTEX_INITIALIZER;
 
-FILE * f;
 
 /* Si hi ha una col.lisió pilota-bloci esborra el bloc */
 /* I genera nova pil */
@@ -69,19 +73,44 @@ void comprovar_bloc(int f, int c) {
 		//pthread_mutex_unlock(&mutex_win);
 
 		//pthread_mutex_lock(&mutex_pil);
-		/*
-		if ((quin == BLKCHAR) && (n_threads_pilota < nballs)) {
+		if ((quin == BLKCHAR) && (*n_procs_pilota < nballs)) {
 			//int tmp = n_threads_pilota;
 			//TODO crea otra pilota
-			if (pthread_create(&threads_pilota[tmp], NULL, mou_pilota, &tmp) == 0) {
-				n_threads_pilota++;
-				//fprintf(stderr, "DEBUG: crea thread_pilota #%d @ comprovar_bloc\n", n_threads_pilota);
+			//TOOD PROCS
+			//pthread_mutex_lock(&mutex_pil);
+			int _ = *n_procs_pilota; //TDDO temporal, da palo poner *n_procs_pilota
+			pids[_] = fork();
+			if (pids[_] == (pid_t) 0) {
+				fprintf(stderr, "DEBUG: BRBRBRBBRBR pu\n");
+				args[ARG_INDEX] = _;
+				//args[ARG_ID_WIN] =  id_win;
+				//args[ARG_RETARD] = retard;
+				//args[ARG_F] =  n_fil;
+				//args[ARG_C] = n_col;
+				//args[ARG_NPROCS] =_;
+				//args[ARG_NBALLS] = *nballs;
+				//args[ARG_NBLOCS] = nblocs;
+				
+				// pilota3 quiere saber las pos&vel de las pil del config para saber DONDE crear nuevas
+				//memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_F*(*nballs)], pos_f, sizeof(float)*(*nballs));
+				//memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_POS_C*(*nballs)], pos_c, sizeof(float)*(*nballs));
+				//memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_VEL_F*(*nballs)], vel_f, sizeof(float)*(*nballs));
+				//memcpy(&args[ARGTYPE_COUNT+OFFSET_PIL_VEL_C*(*nballs)], vel_c, sizeof(float)*(*nballs));
+				//memcpy(&args[ARGTYPE_COUNT+OFFSET_PIDS*(*nballs)], pids, sizeof(float)*(*nballs));
+				char sz_id_args[MAX_LEN_ARG_STR];
+				snprintf(sz_id_args, MAX_LEN_ARG_STR, "%i", id_args); // para pasar id_args a ./pilota3 por string
+				execlp("./pilota3", "pilota3", sz_id_args, (char*) NULL);
+				fprintf(stderr, "DEBUG: no puc executar el proc pilota3\n");
+				exit(1);
+			} else if (pids[_] > 0) {
+				//fprintf(stderr, "DEBUG: crea proc pilota #%d@\n", n_procs_pilota);
+				(*n_procs_pilota)++;
 			} else {
-				fprintf(stderr, "Error: no s'ha pogut crear el thread pilota #%d.\n", n_threads_pilota);
+				fprintf(stderr, "Error: no s'ha pogut crear el proc pilota #%d.\n", *n_procs_pilota);
 			}
+			//pthread_mutex_unlock(&mutex_pil);
 				
 		}
-		*/
 		//pthread_mutex_unlock(&mutex_pil);
 		(*nblocs)--;
 	} else {
@@ -96,7 +125,7 @@ float control_impacte2(int c_pil, float velc0) {
 	float vel_c;
 	
 	//pthread_mutex_lock(&mutex_pal);
-	distApal = c_pil - c_pal;
+	distApal = c_pil - *ptr_c_pal;
 	if (distApal >= 2*m_pal/3) { // costat dreta
 		vel_c = 0.5;
 	} else if (distApal <= m_pal/3) { // costat esquerra
@@ -167,7 +196,7 @@ int mou_pilota(int index) {
 		// verificar posicio definitiva
 		//pthread_mutex_lock(&mutex_win);
 		if (win_quincar(f_h, c_h) == ' ') { // si no hi ha obstacle
-			fprintf(f, "DEBUG: [pilota3.c] ESKETIIRIRIRIRIR pil[%d] f=%f, c=%f \n\n", index, pos_f[index], pos_c[index]);
+			//fprintf(f, "DEBUG: [pilota3.c] ESKETIIRIRIRIRIR pil[%d] f=%f, c=%f \n\n", index, pos_f[index], pos_c[index]);
 			win_escricar(f_pil, c_pil, ' ', NO_INV); // esborra pilota
 			pos_f[index] += vel_f[index];
 			pos_c[index] += vel_c[index];
@@ -193,10 +222,9 @@ int main(int n_args, char *ll_args[]) {
 	fprintf(stderr, "DEBUG: [pilota3.c] HELLO WORLD\n");
 	//int i;
 	void * ptr_win;
-	n_threads_pilota = 0;
 	//long int t; // unused
-	int id_args = atoi(ll_args[1]);
-	float * args = map_mem(id_args);
+	id_args = atoi(ll_args[1]);
+	args = map_mem(id_args);
 	int index = args[ARG_INDEX];
 	int id_win = args[ARG_ID_WIN];
 	retard = args[ARG_RETARD];
@@ -206,12 +234,16 @@ int main(int n_args, char *ll_args[]) {
 	fi2 = (int*)&args[ARG_FI2];
 	nballs = args[ARG_NBALLS];
 	nblocs = (int*) &args[ARG_NBLOCS];
-	nprocs = (int*) &args[ARG_NBLOCS];
-
-	pos_f = &args[ARGTYPECOUNT+OFFSET_PIL_POS_F*nballs];
-	pos_c = &args[ARGTYPECOUNT+OFFSET_PIL_POS_C*nballs];
-	vel_f = &args[ARGTYPECOUNT+OFFSET_PIL_VEL_F*nballs];
-	vel_c = &args[ARGTYPECOUNT+OFFSET_PIL_VEL_C*nballs];
+	n_procs_pilota = (int*) &args[ARG_NPROCS];
+	
+	m_pal = args[ARG_M_PAL];
+	ptr_c_pal = (int*) &args[ARG_C_PAL];
+	
+	pos_f = &args[ARGTYPE_COUNT+OFFSET_PIL_POS_F*nballs];
+	pos_c = &args[ARGTYPE_COUNT+OFFSET_PIL_POS_C*nballs];
+	vel_f = &args[ARGTYPE_COUNT+OFFSET_PIL_VEL_F*nballs];
+	vel_c = &args[ARGTYPE_COUNT+OFFSET_PIL_VEL_C*nballs];
+	pids = (pid_t*) &args[ARGTYPE_COUNT+OFFSET_PIDS*nballs];
 
 	f_pil = pos_f[index];
 	c_pil = pos_c[index];
